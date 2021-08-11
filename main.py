@@ -1,34 +1,33 @@
+from text import Text
+from button import Button
+from configparser import ConfigParser
+from pygame.locals import *
+from pygame.color import THECOLORS as color
+import _thread
+import easygui
 import pygame
 import os
-import easygui
-from pygame.color import THECOLORS as color
-from pygame.locals import *
-from configparser import ConfigParser
-from button import Button
-from text import Text
 
-version = 'v0.2'
+
+version = 'v0.2.1'
 current_music = None
 is_paused = False
+MUSICEND = pygame.USEREVENT
 
 
 def openfile(btn):
-    try:
-        global current_music, is_paused, play_list
-        # 打开文件对话框
-        file = easygui.fileopenbox()
-        if file:
-            current_music = file
-            if pygame.mixer.music.get_busy():
-                # 停止正在播放的歌曲
-                pygame.mixer.music.stop()
-                pygame.mixer.music.unload()
+    global current_music, is_paused, play_list
+    # 打开文件对话框
+    file = easygui.fileopenbox()
+    if file:
+        current_music = file
+        # 停止正在播放的歌曲
+        stop(btn)
+        try:
             pygame.mixer.music.load(current_music)
-            is_paused = False
-            # 播放刚打开的歌曲
-            play_pause(btn)
-    except Exception as e:
-        easygui.msgbox(repr(e))
+        except:
+            easygui.msgbox('播放失败,请检查文件是否有误!')
+            current_music = None
 
 
 def play_pause(btn):
@@ -40,6 +39,7 @@ def play_pause(btn):
                 btn.set_img('pause')
             else:
                 pygame.mixer.music.play()
+                pygame.mixer.music.set_endevent(MUSICEND)
                 btn.set_img('pause')
                 is_paused = True
         else:
@@ -47,6 +47,13 @@ def play_pause(btn):
             btn.set_img('play')
     except Exception as e:
         easygui.msgbox(repr(e))
+
+
+def stop(btn):
+    global is_paused
+    pygame.mixer.music.stop()
+    btn.set_img('play')
+    is_paused = False
 
 
 def main():
@@ -104,7 +111,7 @@ def main():
     # “打开”按钮
     bt_open = Button(pos[0], sizebt)
     bt_open.set_img('open')
-    bt_open.onclick = lambda: openfile(bt_play)
+    bt_open.onclick = lambda: _thread.start_new_thread(openfile, (bt_play,))
     # “播放”按钮
     bt_play = Button(pos[7], sizebt)
     bt_play.set_img('play')
@@ -138,6 +145,8 @@ def main():
             if event.type == pygame.MOUSEBUTTONDOWN:
                 for button in buttons:
                     button.test_click(event.pos)
+            if event.type == MUSICEND:
+                stop(bt_play)
 
         pygame.display.update()
 
