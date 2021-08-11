@@ -7,26 +7,43 @@ import _thread
 import easygui
 import pygame
 import os
+import eyed3
+import wave
+import contextlib
+import mido
 
 
 version = 'v0.2.1'
 current_music = None
+total_time = 0
 is_paused = False
 MUSICEND = pygame.USEREVENT
 
 
+def convertime(sec):
+    return '{:0>2d}:{:0>2d}'.format(*divmod(max(sec, 0), 60))
+
+
 def openfile(btn):
-    global current_music, is_paused, play_list
+    global current_music, total_time, is_paused, play_list
     # 打开文件对话框
-    file = easygui.fileopenbox()
+    file = easygui.fileopenbox(filetypes=['*.mp3', '*.wav', '*.mid'])
     if file:
         current_music = file
+        # 获取歌曲时长
+        if file[-4:] == '.mp3':
+            total_time = int(eyed3.load(current_music).info.time_secs)
+        elif file[-4:] == '.wav':
+            with contextlib.closing(wave.open(file, 'r')) as f:
+                total_time = int(f.getnframes()/f.getframerate())
+        elif file[-4:] == '.mid':
+            total_time = int(mido.MidiFile(file,clip=True).length)
         # 停止正在播放的歌曲
         stop(btn)
         try:
             pygame.mixer.music.load(current_music)
-        except:
-            easygui.msgbox('播放失败,请检查文件是否有误!')
+        except Exception as e:
+            easygui.msgbox('播放失败:'+str(e))
             current_music = None
 
 
@@ -88,6 +105,13 @@ def main():
         if colorfile not in color.keys():
             raise(colorfile+'不是有效的颜色名称!')
 
+        fonttime = conf['time_font']
+        maxsizetime = int(conf['time_font_max_size'])
+
+        colortime = conf['time_font_color']
+        if colortime not in color.keys():
+            raise(colortime+'不是有效的颜色名称!')
+
     except Exception as e:
         easygui.msgbox('读取外观参数时发生异常:'+str(e))
         return
@@ -122,6 +146,8 @@ def main():
     # 初始化字体
     t_title = Text(fontfile, maxsizefile, sizex/2 -
                    spaceline, (sizex*0.75, 10), 'mu')
+    t_time = Text(fonttime, maxsizetime, sizex/2 -
+                  spaceline, (sizex*0.75, sizey-sizebt-spacebt-spaceline-10), 'md')
 
     while True:
         # 填充背景
@@ -130,7 +156,7 @@ def main():
         pygame.draw.line(
             screen, color[colorline], (0, sizey-sizebt-spacebt-spaceline/2), (sizex, sizey-sizebt-spacebt-spaceline/2), spaceline)
         pygame.draw.line(
-            screen, color[colorline], (sizex/2, 0), (sizex/2, sizey-sizebt-spacebt-spaceline/2), spaceline)
+            screen, color[colorline], (sizex/2, 0), (sizex/2, sizey-sizebt-spacebt), spaceline)
         # 显示按钮
         for button in buttons:
             button.show(screen)
@@ -138,6 +164,8 @@ def main():
         if current_music:
             t_title.show(screen, current_music.split(
                 '\\')[-1], color[colorfile])
+            t_time.show(
+                screen, convertime(pygame.mixer.music.get_pos()//1000)+'/'+convertime(total_time), color[colortime])
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
