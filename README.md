@@ -11,4 +11,4 @@ pip install pygame
 ```bash
 python3 main.py
 ```
-** 可以通过把`main.py`的文件后缀名改为`.pyw`来隐藏命令行窗口。 **
+**可以通过把`main.py`的文件后缀名改为`.pyw`来隐藏命令行窗口。**
