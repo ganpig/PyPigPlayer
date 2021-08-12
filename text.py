@@ -2,37 +2,35 @@ import pygame
 
 
 class Text():
-    def __init__(self, font, maxsize, maxwidth, pos, align):
-        self.font = font
+    def __init__(self, font, maxsize, align):
+        self.font = f'font/{font}.ttf'
         self.maxsize = maxsize
-        self.maxwidth = maxwidth
         self.align = align
-        self.pos = pos
 
-    def show(self, screen, text, color):
+    def show(self, screen, text, color, maxwidth, pos):
         render = pygame.font.Font(
             self.font, self.maxsize).render(text, True, color)
         rect = render.get_rect()
-        if rect.width > self.maxwidth:
+        if rect.width > maxwidth:
             render = pygame.font.Font(self.font, int(
-                self.maxsize*self.maxwidth/rect.width)).render(text, True, color)
+                self.maxsize*maxwidth/rect.width)).render(text, True, color)
             rect = render.get_rect()
         if self.align == 'lu':
-            rect.topleft = self.pos
+            rect.topleft = pos
         elif self.align == 'lm':
-            rect.midleft = self.pos
+            rect.midleft = pos
         elif self.align == 'ld':
-            rect.bottomleft = self.pos
+            rect.bottomleft = pos
         elif self.align == 'mu':
-            rect.midtop = self.pos
+            rect.midtop = pos
         elif self.align == 'mm':
-            rect.center = self.pos
+            rect.center = pos
         elif self.align == 'md':
-            rect.midbottom = self.pos
+            rect.midbottom = pos
         elif self.align == 'ru':
-            rect.topright = self.pos
+            rect.topright = pos
         elif self.align == 'rm':
-            rect.midright = self.pos
+            rect.midright = pos
         elif self.align == 'rd':
-            rect.bottomright = self.pos
+            rect.bottomright = pos
         screen.blit(render, rect)

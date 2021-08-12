@@ -2,22 +2,21 @@ import pygame
 
 
 class Button(pygame.sprite.Sprite):
-    def __init__(self, pos, size):
+    def __init__(self, id):
         pygame.sprite.Sprite.__init__(self)
-        self.pos = pos
-        self.size = size
+        self.id = id
         self.img = None
 
-    def show(self, screen):
+    def show(self, screen, pos, size):
         if self.img:
-            screen.blit(self.img, self.rect)
+            img = pygame.transform.scale(self.img, (int(size),)*2)
+            self.rect = img.get_rect()
+            self.rect.left, self.rect.top = pos
+            screen.blit(img, self.rect)
 
     def set_img(self, img):
         if img:
-            self.img = pygame.transform.scale(
-                pygame.image.load(f'img/{img}.png'), (self.size,)*2)
-            self.rect = self.img.get_rect()
-            self.rect.left, self.rect.top = self.pos
+            self.img = pygame.image.load(f'img/{img}.png')
         else:
             self.img = None
 
