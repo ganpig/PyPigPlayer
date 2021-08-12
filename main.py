@@ -27,7 +27,7 @@ def convertime(sec):
 def get_total_time(file):
     # 获取音乐总时长
     if file[-4:] == '.mp3':
-        return int(eyed3.load(current_music).info.time_secs)
+        return int(eyed3.load（file).info.time_secs)
     elif file[-4:] == '.wav':
         with contextlib.closing(wave.open(file, 'r')) as f:
             return int(f.getnframes()/f.getframerate())
