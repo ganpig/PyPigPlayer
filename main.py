@@ -24,20 +24,24 @@ def convertime(sec):
     return '{:0>2d}:{:0>2d}'.format(*divmod(max(sec, 0), 60))
 
 
+def get_total_time(file):
+    # 获取音乐总时长
+    if file[-4:] == '.mp3':
+        return int(eyed3.load(current_music).info.time_secs)
+    elif file[-4:] == '.wav':
+        with contextlib.closing(wave.open(file, 'r')) as f:
+            return int(f.getnframes()/f.getframerate())
+    elif file[-4:] == '.mid':
+        return int(mido.MidiFile(file, clip=True).length)
+
+
 def openfile(btn):
     global current_music, total_time, is_paused, play_list
     # 打开文件对话框
     file = easygui.fileopenbox(filetypes=['*.mp3', '*.wav', '*.mid'])
     if file:
         current_music = file
-        # 获取歌曲时长
-        if file[-4:] == '.mp3':
-            total_time = int(eyed3.load(current_music).info.time_secs)
-        elif file[-4:] == '.wav':
-            with contextlib.closing(wave.open(file, 'r')) as f:
-                total_time = int(f.getnframes()/f.getframerate())
-        elif file[-4:] == '.mid':
-            total_time = int(mido.MidiFile(file,clip=True).length)
+        total_time = get_total_time(file)
         # 停止正在播放的歌曲
         stop(btn)
         try:
