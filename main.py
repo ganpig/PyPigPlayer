@@ -10,7 +10,7 @@ import win32api
 import win32gui
 import win32con
 
-version = 'v0.4'
+version = 'v0.5'
 current_music = None
 total_time = 0
 offset_time = 0
@@ -18,7 +18,7 @@ MUSICEND = pygame.USEREVENT
 
 
 def convertime(sec):
-    return '{:0>2d}:{:0>2d}'.format(*divmod(max(sec, 0), 60))
+    return '{:0>2d}:{:0>2d}'.format(*divmod(max(int(sec), 0), 60))
 
 
 def openfile(btn):
@@ -123,6 +123,14 @@ def main():
         colortime = conf['time_font_color']
         if colortime not in color.keys():
             raise ValueError(colortime+'不是有效的颜色名称!')
+        widthprog = int(conf['progress_width'])
+        colorprog1 = conf['progress_color_1']
+        if colorprog1 not in color.keys():
+            raise ValueError(colorprog1+'不是有效的颜色名称!')
+        colorprog2 = conf['progress_color_2']
+        if colorprog2 not in color.keys():
+            raise ValueError(colorprog2+'不是有效的颜色名称!')
+        spaceprog = int(conf['progress_space'])
     except Exception as e:
         easygui.msgbox('读取外观参数时发生异常:'+str(e))
         return
@@ -204,7 +212,6 @@ def main():
     repaint = 0
     while True:
         if not fullscreen and size != screen.get_size():
-            print(1)
             # 更改窗口大小
             sizex, sizey = screen.get_size()
             sizex = max(sizex, minx)
@@ -219,10 +226,14 @@ def main():
             spacebt = (sizex-numbt*sizebt)/(numbt+1)
             pos = [(spacebt+(sizebt+spacebt)*i, sizey-sizebt-spacebt/2)
                    for i in range(numbt)]
-        repaint = 0
+            repaint = 0
 
         # 填充背景
         screen.fill(color[colorbg])
+
+        # 显示按钮
+        for button in buttons:
+            button.show(screen, pos[button.id], sizebt)
 
         # 绘制线
         pygame.draw.line(
@@ -230,12 +241,17 @@ def main():
         pygame.draw.line(
             screen, color[colorline], (sizex/2, 0), (sizex/2, sizey-sizebt-spacebt-widthline/2), widthline)
 
-        # 显示按钮
-        for button in buttons:
-            button.show(screen, pos[button.id], sizebt)
-
-        # 渲染文字
         if current_music:
+            # 绘制进度条
+            rectprog = pygame.Rect((sizex+widthline)/2+spaceprog, sizey-sizebt-spacebt -
+                                   widthline - spaceprog-widthprog, (sizex-widthline)/2-spaceprog*2, widthprog)
+            pygame.draw.line(screen, color[colorprog2], ((sizex+widthline)/2+spaceprog, sizey-sizebt-spacebt-widthline -
+                             spaceprog-widthprog/2), (sizex-spaceprog, sizey-sizebt-spacebt-widthline-spaceprog-widthprog/2), widthprog)
+            if total_time:
+                pygame.draw.line(screen, color[colorprog1], ((sizex+widthline)/2+spaceprog+((sizex-widthline)/2-spaceprog*2)*(pygame.mixer.music.get_pos()+offset_time) /
+                                                             total_time/1000, sizey-sizebt-spacebt-widthline - spaceprog-widthprog/2), (sizex-spaceprog, sizey-sizebt-spacebt-widthline-spaceprog-widthprog/2), widthprog)
+
+            # 渲染文字
             t_title.show(screen, current_music.split(
                 '\\')[-1], color[colorfile], sizex/2 -
                 widthline, (sizex*0.75+widthline*0.25, 10))
@@ -249,13 +265,20 @@ def main():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 return
+
             # 鼠标点击
             if event.type == pygame.MOUSEBUTTONDOWN:
+                if current_music:
+                    if rectprog.collidepoint(event.pos):
+                        setpoint(
+                            total_time*(event.pos[0]-rectprog.left)/rectprog.width)
                 for button in buttons:
                     button.test_click(event.pos)
+
             # 音乐结束
             if event.type == MUSICEND:
                 stop(bt_play)
+
             # 按下按键
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
