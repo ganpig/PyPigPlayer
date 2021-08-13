@@ -15,6 +15,8 @@ class Text():
             render = pygame.font.Font(self.font, int(
                 self.maxsize*maxwidth/rect.width)).render(text, True, color)
             rect = render.get_rect()
+
+        # 对齐方式
         if self.align == 'lu':
             rect.topleft = pos
         elif self.align == 'lm':
@@ -34,3 +36,4 @@ class Text():
         elif self.align == 'rd':
             rect.bottomright = pos
         screen.blit(render, rect)
+        return rect

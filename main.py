@@ -3,6 +3,7 @@ from button import Button
 from configparser import ConfigParser
 from pygame.color import THECOLORS as color
 import _thread
+import time
 import easygui
 import pygame
 import eyed3
@@ -10,19 +11,31 @@ import win32api
 import win32gui
 import win32con
 
-version = 'v0.5.1'
+version = 'v0.6'
 current_music = None
 total_time = 0
 offset_time = 0
 MUSICEND = pygame.USEREVENT
+volume = 0.5
+repeat = False
 
 
 def convertime(sec):
-    return '{:0>2d}:{:0>2d}'.format(*divmod(max(int(sec), 0), 60))
+    return '{:0>2d}:{:0>2d}'.format(*divmod(max(sec, 0), 60))
 
 
 def getime():
     return pygame.mixer.music.get_pos()+offset_time
+
+
+def set_repeat():
+    global repeat
+    if repeat:
+        repeat = False
+        print('Repeat off')
+    else:
+        repeat = True
+        print('Repeat on')
 
 
 def openfile(btn):
@@ -30,7 +43,7 @@ def openfile(btn):
     # 打开文件对话框
     file = easygui.fileopenbox(default='*.mp3')
     if file:
-        print('Open file ', file)
+        print('Open file', file)
         try:
             # 停止正在播放的歌曲
             if current_music:
@@ -39,7 +52,7 @@ def openfile(btn):
             # 载入文件
             pygame.mixer.music.load(current_music)
             # 获取时长
-            total_time = int(eyed3.load(current_music).info.time_secs)
+            total_time = int(eyed3.load(current_music).info.time_secs*1000)
             offset_time = 0
             pygame.mixer.music.play()
             pygame.mixer.music.pause()
@@ -77,24 +90,44 @@ def stop(btn):
 def back(time):
     global current_music, offset_time
     if current_music:
-        setpoint(max(0, getime()//1000-time))
+        to_point = max(0, getime()-time*1000)
+        print('set time to', to_point)
+        setpoint(to_point)
 
 
 def forward(time):
     global current_music, offset_time, total_time
     if current_music:
-        setpoint(
-            min(total_time, getime()//1000+time))
+        to_point = min(total_time, getime()+time*1000)
+        print('set time to', to_point)
+        setpoint(to_point)
 
 
 def setpoint(to_point):
     global offset_time
     try:
-        pygame.mixer.music.set_pos(to_point)
-        offset_time = to_point*1000-pygame.mixer.music.get_pos()
+        pygame.mixer.music.set_pos(to_point/1000)
+        offset_time = to_point-pygame.mixer.music.get_pos()
     except Exception as e:
         print(repr(e))
 
+
+def volup(step):
+    global volume
+    volume = round(min(volume+step/100, 1), 2)
+    print('set volume to', volume)
+    pygame.mixer.music.set_volume(volume)
+
+
+def voldown(step):
+    global volume
+    volume = round(max(volume-step/100, 0), 2)
+    print('set volume to', volume)
+    pygame.mixer.music.set_volume(volume)
+
+def get_state():
+    global repeat,volume
+    return '单曲循环:'+('开' if repeat else '关')+' 音量:'+str(int(volume*100))+'%'
 
 def main():
     # 打开配置文件
@@ -123,6 +156,11 @@ def main():
         colorfile = conf['file_font_color']
         if colorfile not in color.keys():
             raise ValueError(colorfile+'不是有效的颜色名称!')
+        fontstate = conf['state_font']
+        maxsizestate = int(conf['state_font_max_size'])
+        colorstate = conf['state_font_color']
+        if colorfile not in color.keys():
+            raise ValueError(colorfile+'不是有效的颜色名称!')
         fonttime = conf['time_font']
         maxsizetime = int(conf['time_font_max_size'])
         colortime = conf['time_font_color']
@@ -145,6 +183,8 @@ def main():
         conf = dict(cp.items('Player'))
         timeb = int(conf['back_time'])
         timef = int(conf['forward_time'])
+        stepu = int(conf['volume_up_step'])
+        stepd = int(conf['volume_down_step'])
     except Exception as e:
         easygui.msgbox('读取播放器参数时发生异常:'+str(e))
         return
@@ -161,7 +201,7 @@ def main():
     # 获取屏幕分辨率
     screenx = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
     screeny = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
-    print('Screen size is ', (screenx, screeny))
+    print('Screen size is', (screenx, screeny))
 
     # 初始化窗口
     pygame.init()
@@ -177,7 +217,7 @@ def main():
                               (screenx-sizex)//2, (screeny-sizey)//2,
                               sizex, sizey,
                               win32con.SWP_SHOWWINDOW)
-    print('Window size is ', size)
+    print('Window size is', size)
     pygame.display.set_caption('PyPigPlayer '+version)
 
     # 设置音乐结束事件
@@ -212,22 +252,54 @@ def main():
     bt_forward.set_img('forward')
     bt_forward.onclick = lambda: forward(timef)
 
+    # “重复”按钮
+    bt_repeat = Button(12)
+    bt_repeat.set_img('repeat')
+    bt_repeat.onclick = set_repeat
+
+    # “音量-”按钮
+    bt_volm = Button(13)
+    bt_volm.set_img('vol-')
+    bt_volm.onclick = lambda: voldown(stepd)
+
+    # “音量+”按钮
+    bt_volp = Button(14)
+    bt_volp.set_img('vol+')
+    bt_volp.onclick = lambda: volup(stepu)
+
     # 按钮列表
-    buttons = [bt_open, bt_back, bt_play, bt_forward]
+    buttons = [bt_open, bt_back, bt_play,
+               bt_forward, bt_repeat, bt_volm, bt_volp]
 
     # 初始化字体
     t_title = Text(fontfile, maxsizefile, 'mu')
+    t_state = Text(fontstate, maxsizestate, 'mu')
     t_time = Text(fonttime, maxsizetime, 'md')
 
+    # 定义重绘变量
     repaint = 0
+
+    # 定义鼠标按下变量
+    mouse = 0
+
+    # 初始化计数器
+    start_time = time.time()
+    frame = 0
+
+    # 主循环
     while True:
+        # 输出帧率
+        if frame and not frame % 10000:
+            print('current fps is', int(frame/(time.time()-start_time)))
+        frame += 1
+
         if not fullscreen and size != screen.get_size():
             # 更改窗口大小
             sizex, sizey = screen.get_size()
             sizex = max(sizex, minx)
             sizey = max(sizey, miny)
             size = (sizex, sizey)
-            print('Resize window to ', size)
+            print('Resize window to', size)
             pygame.display.set_mode(size, pygame.RESIZABLE)
             repaint = 1
 
@@ -274,22 +346,28 @@ def main():
             if total_time:
                 pygame.draw.line(screen,
                                  color[colorprog1],
-                                 ((sizex+widthline)/2+spaceprog+((sizex-widthline)/2-spaceprog*2)*getime()/1000/total_time,
+                                 ((sizex+widthline)/2+spaceprog+((sizex-widthline)/2-spaceprog*2)*getime()/total_time,
                                   sizey-sizebt-spacebt-widthline - spaceprog-widthprog/2),
                                  (sizex-spaceprog, sizey-sizebt-spacebt -
                                      widthline-spaceprog-widthprog/2),
                                  widthprog)
 
             # 渲染文字
-            t_title.show(screen,
-                         current_music.split('\\')[-1],
-                         color[colorfile],
-                         sizex/2 - widthline,
-                         (sizex*0.75+widthline*0.25, 10))
+            titlepos = t_title.show(screen,
+                                    current_music.split('\\')[-1],
+                                    color[colorfile],
+                                    (sizex - widthline)/2,
+                                    (sizex*0.75+widthline*0.25, 10)).midbottom
+            t_state.show(screen,
+                         get_state(),
+                         color[colorstate],
+                         (sizex - widthline)/2,
+                         titlepos)
             t_time.show(screen,
-                        convertime(getime()//1000)+'/'+convertime(total_time),
+                        convertime(getime()//1000)+'/' +
+                        convertime(total_time//1000),
                         color[colortime],
-                        sizex/2 - widthline,
+                        (sizex - widthline)/2,
                         (sizex*0.75+widthline*0.25, sizey-sizebt-spacebt-widthline-10))
 
         # 处理事件
@@ -299,29 +377,51 @@ def main():
                 pygame.quit()
                 return
 
-            # 鼠标点击
+            # 鼠标按下
             if event.type == pygame.MOUSEBUTTONDOWN:
+                mouse = 1
                 if current_music:
                     if rectprog.collidepoint(event.pos):
-                        setpoint(
-                            total_time*(event.pos[0]-rectprog.left)/rectprog.width)
+                        to_point = int(total_time *
+                                       (event.pos[0]-rectprog.left)/rectprog.width)
+                        print('set time to', to_point)
+                        setpoint(to_point)
                 for button in buttons:
                     button.test_click(event.pos)
+
+            # 鼠标放开
+            if event.type == pygame.MOUSEBUTTONUP:
+                mouse = 0
+
+            # 鼠标拖动
+            if event.type == pygame.MOUSEMOTION:
+                if mouse:
+                    if current_music:
+                        if rectprog.collidepoint(event.pos):
+                            setpoint(int(
+                                total_time*(event.pos[0]-rectprog.left)/rectprog.width))
 
             # 音乐结束
             if event.type == MUSICEND:
                 stop(bt_play)
+                if repeat:
+                    play_pause(bt_play)
 
             # 按下按键
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
                     play_pause(bt_play)
+                if event.key == pygame.K_UP:
+                    volup(stepu)
+                if event.key == pygame.K_DOWN:
+                    voldown(stepd)
                 if event.key == pygame.K_LEFT:
                     back(timeb)
                 if event.key == pygame.K_RIGHT:
                     forward(timef)
                 if event.key == pygame.K_F11:
                     if fullscreen:
+                        print('Fullscreen off')
                         fullscreen = 0
                         sizex, sizey = size = defaultsize
                         pygame.display.set_mode(size)
@@ -332,6 +432,7 @@ def main():
                                               sizex, sizey,
                                               win32con.SWP_SHOWWINDOW)
                     else:
+                        print('Fullscreen on')
                         fullscreen = 1
                         sizex, sizey = size = (screenx, screeny)
                         screen = pygame.display.set_mode(size,
@@ -339,6 +440,7 @@ def main():
                     repaint = 1
                 if event.key == pygame.K_ESCAPE:
                     if fullscreen:
+                        print('Fullscreen off')
                         fullscreen = 0
                         sizex, sizey = size = defaultsize
                         pygame.display.set_mode(size)
