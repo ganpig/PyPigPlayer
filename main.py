@@ -10,7 +10,7 @@ import win32api
 import win32gui
 import win32con
 
-version = 'v0.5'
+version = 'v0.5.1'
 current_music = None
 total_time = 0
 offset_time = 0
@@ -21,11 +21,16 @@ def convertime(sec):
     return '{:0>2d}:{:0>2d}'.format(*divmod(max(int(sec), 0), 60))
 
 
+def getime():
+    return pygame.mixer.music.get_pos()+offset_time
+
+
 def openfile(btn):
-    global current_music, total_time
+    global current_music, total_time, offset_time
     # 打开文件对话框
     file = easygui.fileopenbox(default='*.mp3')
     if file:
+        print('Open file ', file)
         try:
             # 停止正在播放的歌曲
             if current_music:
@@ -72,14 +77,14 @@ def stop(btn):
 def back(time):
     global current_music, offset_time
     if current_music:
-        setpoint(max(0, (pygame.mixer.music.get_pos()+offset_time)//1000-time))
+        setpoint(max(0, getime()//1000-time))
 
 
 def forward(time):
     global current_music, offset_time, total_time
     if current_music:
         setpoint(
-            min(total_time, (pygame.mixer.music.get_pos()+offset_time)//1000+time))
+            min(total_time, getime()//1000+time))
 
 
 def setpoint(to_point):
@@ -156,6 +161,7 @@ def main():
     # 获取屏幕分辨率
     screenx = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
     screeny = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
+    print('Screen size is ', (screenx, screeny))
 
     # 初始化窗口
     pygame.init()
@@ -166,8 +172,12 @@ def main():
     else:
         sizex, sizey = size = defaultsize
         screen = pygame.display.set_mode(size, pygame.RESIZABLE)
-        win32gui.SetWindowPos(win32gui.GetForegroundWindow(), win32con.HWND_TOPMOST, (
-            screenx-sizex)//2, (screeny-sizey)//2, sizex, sizey, win32con.SWP_SHOWWINDOW)
+        win32gui.SetWindowPos(win32gui.GetForegroundWindow(),
+                              win32con.HWND_TOPMOST,
+                              (screenx-sizex)//2, (screeny-sizey)//2,
+                              sizex, sizey,
+                              win32con.SWP_SHOWWINDOW)
+    print('Window size is ', size)
     pygame.display.set_caption('PyPigPlayer '+version)
 
     # 设置音乐结束事件
@@ -217,7 +227,8 @@ def main():
             sizex = max(sizex, minx)
             sizey = max(sizey, miny)
             size = (sizex, sizey)
-            screen = pygame.display.set_mode(size, pygame.RESIZABLE)
+            print('Resize window to ', size)
+            pygame.display.set_mode(size, pygame.RESIZABLE)
             repaint = 1
 
         if repaint:
@@ -236,28 +247,50 @@ def main():
             button.show(screen, pos[button.id], sizebt)
 
         # 绘制线
-        pygame.draw.line(
-            screen, color[colorline], (0, sizey-sizebt-spacebt-widthline/2), (sizex, sizey-sizebt-spacebt-widthline/2), widthline)
-        pygame.draw.line(
-            screen, color[colorline], (sizex/2, 0), (sizex/2, sizey-sizebt-spacebt-widthline/2), widthline)
+        pygame.draw.line(screen,
+                         color[colorline],
+                         (0, sizey-sizebt-spacebt-widthline/2),
+                         (sizex, sizey-sizebt-spacebt-widthline/2),
+                         widthline)
+        pygame.draw.line(screen,
+                         color[colorline],
+                         (sizex/2, 0),
+                         (sizex/2, sizey-sizebt-spacebt-widthline/2),
+                         widthline)
 
         if current_music:
             # 绘制进度条
-            rectprog = pygame.Rect((sizex+widthline)/2+spaceprog, sizey-sizebt-spacebt -
-                                   widthline - spaceprog-widthprog, (sizex-widthline)/2-spaceprog*2, widthprog)
-            pygame.draw.line(screen, color[colorprog2], ((sizex+widthline)/2+spaceprog, sizey-sizebt-spacebt-widthline -
-                             spaceprog-widthprog/2), (sizex-spaceprog, sizey-sizebt-spacebt-widthline-spaceprog-widthprog/2), widthprog)
+            rectprog = pygame.Rect((sizex+widthline)/2+spaceprog,
+                                   sizey-sizebt-spacebt - widthline - spaceprog-widthprog,
+                                   (sizex-widthline)/2-spaceprog*2,
+                                   widthprog)
+            pygame.draw.line(screen,
+                             color[colorprog2],
+                             ((sizex+widthline)/2+spaceprog, sizey-sizebt -
+                              spacebt-widthline - spaceprog-widthprog/2),
+                             (sizex-spaceprog, sizey-sizebt-spacebt -
+                              widthline-spaceprog-widthprog/2),
+                             widthprog)
             if total_time:
-                pygame.draw.line(screen, color[colorprog1], ((sizex+widthline)/2+spaceprog+((sizex-widthline)/2-spaceprog*2)*(pygame.mixer.music.get_pos()+offset_time) /
-                                                             total_time/1000, sizey-sizebt-spacebt-widthline - spaceprog-widthprog/2), (sizex-spaceprog, sizey-sizebt-spacebt-widthline-spaceprog-widthprog/2), widthprog)
+                pygame.draw.line(screen,
+                                 color[colorprog1],
+                                 ((sizex+widthline)/2+spaceprog+((sizex-widthline)/2-spaceprog*2)*getime()/1000/total_time,
+                                  sizey-sizebt-spacebt-widthline - spaceprog-widthprog/2),
+                                 (sizex-spaceprog, sizey-sizebt-spacebt -
+                                     widthline-spaceprog-widthprog/2),
+                                 widthprog)
 
             # 渲染文字
-            t_title.show(screen, current_music.split(
-                '\\')[-1], color[colorfile], sizex/2 -
-                widthline, (sizex*0.75+widthline*0.25, 10))
-            t_time.show(
-                screen, convertime((pygame.mixer.music.get_pos()+offset_time)//1000)+'/'+convertime(total_time), color[colortime], sizex/2 -
-                widthline, (sizex*0.75+widthline*0.25, sizey-sizebt-spacebt-widthline-10))
+            t_title.show(screen,
+                         current_music.split('\\')[-1],
+                         color[colorfile],
+                         sizex/2 - widthline,
+                         (sizex*0.75+widthline*0.25, 10))
+            t_time.show(screen,
+                        convertime(getime()//1000)+'/'+convertime(total_time),
+                        color[colortime],
+                        sizex/2 - widthline,
+                        (sizex*0.75+widthline*0.25, sizey-sizebt-spacebt-widthline-10))
 
         # 处理事件
         for event in pygame.event.get():
@@ -291,26 +324,30 @@ def main():
                     if fullscreen:
                         fullscreen = 0
                         sizex, sizey = size = defaultsize
-                        screen = pygame.display.set_mode(size)
-                        screen = pygame.display.set_mode(
-                            size, pygame.RESIZABLE)
-                        win32gui.SetWindowPos(win32gui.GetForegroundWindow(), win32con.HWND_TOPMOST, (
-                            screenx-sizex)//2, (screeny-sizey)//2, sizex, sizey, win32con.SWP_SHOWWINDOW)
+                        pygame.display.set_mode(size)
+                        pygame.display.set_mode(size, pygame.RESIZABLE)
+                        win32gui.SetWindowPos(win32gui.GetForegroundWindow(),
+                                              win32con.HWND_TOPMOST,
+                                              (screenx-sizex)//2, (screeny-sizey)//2,
+                                              sizex, sizey,
+                                              win32con.SWP_SHOWWINDOW)
                     else:
                         fullscreen = 1
                         sizex, sizey = size = (screenx, screeny)
-                        screen = pygame.display.set_mode(
-                            size, pygame.FULLSCREEN | pygame.HWSURFACE)
+                        screen = pygame.display.set_mode(size,
+                                                         pygame.FULLSCREEN | pygame.HWSURFACE)
                     repaint = 1
                 if event.key == pygame.K_ESCAPE:
                     if fullscreen:
                         fullscreen = 0
                         sizex, sizey = size = defaultsize
-                        screen = pygame.display.set_mode(size)
-                        screen = pygame.display.set_mode(
-                            size, pygame.RESIZABLE)
-                        win32gui.SetWindowPos(win32gui.GetForegroundWindow(), win32con.HWND_TOPMOST, (
-                            screenx-sizex)//2, (screeny-sizey)//2, sizex, sizey, win32con.SWP_SHOWWINDOW)
+                        pygame.display.set_mode(size)
+                        pygame.display.set_mode(size, pygame.RESIZABLE)
+                        win32gui.SetWindowPos(win32gui.GetForegroundWindow(),
+                                              win32con.HWND_TOPMOST,
+                                              (screenx-sizex)//2, (screeny-sizey)//2,
+                                              sizex, sizey,
+                                              win32con.SWP_SHOWWINDOW)
                         repaint = 1
 
         # 刷新窗口
