@@ -6,10 +6,12 @@
 
 # 当前支持功能
 
-- ### 播放 MP3
-- ### 控制并显示进度条，快进快退
-- ### 控制音量
-- ### 单曲循环
+- **播放 MP3
+- **进度条
+- **快进快退
+- **调节音量
+- **单曲循环
+- **定时关闭
 
 # 使用方法
 
@@ -24,7 +26,7 @@
 ```bash
 pip install easygui
 pip install pygame
-pip install eyed3
+pip install mutagen
 pip install pywin32
 pip install pyinstaller
 ```
