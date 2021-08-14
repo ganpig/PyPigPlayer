@@ -1,23 +1,30 @@
 from text import Text
 from button import Button
+from mutagen.mp3 import MP3
 from configparser import ConfigParser
 from pygame.color import THECOLORS as color
 import _thread
 import time
 import easygui
 import pygame
-import eyed3
 import win32api
 import win32gui
 import win32con
 
-version = 'v0.6'
-current_music = None
+version = 'PyPigPlayer v0.7'
 total_time = 0
 offset_time = 0
-MUSICEND = pygame.USEREVENT
-volume = 0.5
+start_time = 0
+stop_time = 0
+pagebt = 0
+volume = 0
+clock = False
 repeat = False
+cont = True
+running = True
+state = None
+current_music = None
+MUSICEND = pygame.USEREVENT
 
 
 def convertime(sec):
@@ -43,16 +50,19 @@ def openfile(btn):
     # 打开文件对话框
     file = easygui.fileopenbox(default='*.mp3')
     if file:
-        print('Open file', file)
         try:
             # 停止正在播放的歌曲
             if current_music:
                 stop(btn)
             current_music = file
             # 载入文件
+            print('Open file', file, end='...')
             pygame.mixer.music.load(current_music)
+            print('Done')
             # 获取时长
-            total_time = int(eyed3.load(current_music).info.time_secs*1000)
+            print('Getting total time', end='...')
+            total_time = int(MP3(current_music).info.length*1000)
+            print(total_time)
             offset_time = 0
             pygame.mixer.music.play()
             pygame.mixer.music.pause()
@@ -125,11 +135,55 @@ def voldown(step):
     print('set volume to', volume)
     pygame.mixer.music.set_volume(volume)
 
+
 def get_state():
-    global repeat,volume
-    return '单曲循环:'+('开' if repeat else '关')+' 音量:'+str(int(volume*100))+'%'
+    global running, repeat, volume, start_time, stop_time, state, cont
+    while True:
+        if clock and (time.time()-start_time) % 10 < 5:
+            if time.time() < start_time+stop_time*60:
+                state = '定时器剩余' + \
+                    convertime(int(start_time+stop_time*60-time.time()))
+            else:
+                cont = False
+                state = '播放此首后将自动停止'
+        else:
+            state = ('单曲循环:'+('开' if repeat else '关')) + \
+                ' 音量:'+str(int(volume*100))+'%'
+
+
+def set_pagebt(x):
+    global pagebt
+    pagebt = x
+
+
+def time_plus(x):
+    global start_time, stop_time, clock
+    stop_time += x
+    if not clock:
+        start_time = time.time()
+        clock = True
+
+
+def time_minus(x):
+    global stop_time, clock
+    if clock:
+        stop_time = max(stop_time-x, 1)
+
+
+def time_on_off(x):
+    global clock, start_time, stop_time
+    if clock:
+        stop_time = 0
+        clock = False
+    else:
+        start_time = time.time()
+        stop_time = x
+        clock = True
+
 
 def main():
+    global state, pagebt, cont, repeat, stop_time, running, clock, volume
+
     # 打开配置文件
     cp = ConfigParser()
     cp.read('settings.ini', encoding='utf-8')
@@ -137,35 +191,49 @@ def main():
     # 读取外观参数
     try:
         conf = dict(cp.items('Appearance'))
+
         fullscreen = int(conf['fullscreen'])
         if not fullscreen:
             defaultsize = tuple(eval(conf['window_default_size']))
             minx, miny = tuple(eval(conf['window_min_size']))
+
         numbt = int(conf['button_num'])
         minspacebt = int(conf['button_min_space'])
         maxsizebt = int(conf['button_max_size'])
+
         widthline = int(conf['line_width'])
         colorline = conf['line_color']
         if colorline not in color.keys():
             raise ValueError(colorline+'不是有效的颜色名称!')
+
         colorbg = conf['background_color']
         if colorbg not in color.keys():
             raise ValueError(colorbg+'不是有效的颜色名称!')
+
         fontfile = conf['file_font']
         maxsizefile = int(conf['file_font_max_size'])
         colorfile = conf['file_font_color']
         if colorfile not in color.keys():
             raise ValueError(colorfile+'不是有效的颜色名称!')
+
         fontstate = conf['state_font']
         maxsizestate = int(conf['state_font_max_size'])
         colorstate = conf['state_font_color']
         if colorfile not in color.keys():
             raise ValueError(colorfile+'不是有效的颜色名称!')
+
         fonttime = conf['time_font']
         maxsizetime = int(conf['time_font_max_size'])
         colortime = conf['time_font_color']
         if colortime not in color.keys():
             raise ValueError(colortime+'不是有效的颜色名称!')
+
+        fonttimer = conf['timer_font']
+        maxsizetimer = int(conf['timer_font_max_size'])
+        colortimer = conf['timer_font_color']
+        if colortimer not in color.keys():
+            raise ValueError(colortimer+'不是有效的颜色名称!')
+
         widthprog = int(conf['progress_width'])
         colorprog1 = conf['progress_color_1']
         if colorprog1 not in color.keys():
@@ -174,6 +242,7 @@ def main():
         if colorprog2 not in color.keys():
             raise ValueError(colorprog2+'不是有效的颜色名称!')
         spaceprog = int(conf['progress_space'])
+
     except Exception as e:
         easygui.msgbox('读取外观参数时发生异常:'+str(e))
         return
@@ -181,10 +250,18 @@ def main():
     # 读取播放器参数
     try:
         conf = dict(cp.items('Player'))
+
         timeb = int(conf['back_time'])
         timef = int(conf['forward_time'])
+
+        defaultvol = int(conf['volume_default'])
         stepu = int(conf['volume_up_step'])
         stepd = int(conf['volume_down_step'])
+
+        defaultime = int(conf['timer_default'])
+        timep = int(conf['timer_longer_step'])
+        timem = int(conf['timer_shorter_step'])
+
     except Exception as e:
         easygui.msgbox('读取播放器参数时发生异常:'+str(e))
         return
@@ -192,8 +269,10 @@ def main():
     # 读取按键参数
     try:
         conf = dict(cp.items('Key'))
+
         delaykey = int(conf['repeat_delay'])
         intervalkey = int(conf['repeat_interval'])
+
     except Exception as e:
         easygui.msgbox('读取按键参数时发生异常:'+str(e))
         return
@@ -218,7 +297,11 @@ def main():
                               sizex, sizey,
                               win32con.SWP_SHOWWINDOW)
     print('Window size is', size)
-    pygame.display.set_caption('PyPigPlayer '+version)
+    pygame.display.set_caption(version)
+
+    # 设置初始音量
+    volume = defaultvol/100
+    pygame.mixer.music.set_volume(volume)
 
     # 设置音乐结束事件
     pygame.mixer.music.set_endevent(MUSICEND)
@@ -232,9 +315,14 @@ def main():
     pos = [(sizex/numbt*(i+0.5)-sizebt/2, sizey-sizebt-spacebt/2)
            for i in range(numbt)]
 
+    # “定时”按钮
+    bt_time = Button(0)
+    bt_time.set_img('time')
+    bt_time.onclick = lambda: set_pagebt(not pagebt)
+
     # “打开”按钮
-    bt_open = Button(0)
-    bt_open.set_img('open')
+    bt_open = Button(1)
+    bt_open.set_img('plus')
     bt_open.onclick = lambda: _thread.start_new_thread(openfile, (bt_play,))
 
     # “快退”按钮
@@ -267,14 +355,39 @@ def main():
     bt_volp.set_img('vol+')
     bt_volp.onclick = lambda: volup(stepu)
 
+    # 按钮列表0
+    buttons_0 = [bt_time, bt_open, bt_back, bt_play,
+                 bt_forward, bt_repeat, bt_volm, bt_volp]
+
+    # “关闭计时器”按钮
+    bt_offtime = Button(1)
+    bt_offtime.set_img('power')
+    bt_offtime.onclick = lambda: time_on_off(defaultime)
+
+    # “定时-”按钮
+    bt_timem = Button(2)
+    bt_timem.set_img('minus')
+    bt_timem.onclick = lambda: time_minus(timem)
+
+    # “定时+”按钮
+    bt_timep = Button(3)
+    bt_timep.set_img('plus')
+    bt_timep.onclick = lambda: time_plus(timep)
+
+    # 按钮列表1
+    buttons_1 = [bt_time, bt_offtime, bt_timem, bt_timep]
+
     # 按钮列表
-    buttons = [bt_open, bt_back, bt_play,
-               bt_forward, bt_repeat, bt_volm, bt_volp]
+    buttons = [buttons_0, buttons_1]
 
     # 初始化字体
     t_title = Text(fontfile, maxsizefile, 'mu')
     t_state = Text(fontstate, maxsizestate, 'mu')
     t_time = Text(fonttime, maxsizetime, 'md')
+    t_timer = Text(fonttimer, maxsizetimer, 'rm')
+
+    # 启动状态更新进程
+    _thread.start_new_thread(get_state, tuple())
 
     # 定义重绘变量
     repaint = 0
@@ -282,17 +395,8 @@ def main():
     # 定义鼠标按下变量
     mouse = 0
 
-    # 初始化计数器
-    start_time = time.time()
-    frame = 0
-
     # 主循环
     while True:
-        # 输出帧率
-        if frame and not frame % 10000:
-            print('current fps is', int(frame/(time.time()-start_time)))
-        frame += 1
-
         if not fullscreen and size != screen.get_size():
             # 更改窗口大小
             sizex, sizey = screen.get_size()
@@ -315,7 +419,7 @@ def main():
         screen.fill(color[colorbg])
 
         # 显示按钮
-        for button in buttons:
+        for button in buttons[pagebt]:
             button.show(screen, pos[button.id], sizebt)
 
         # 绘制线
@@ -352,28 +456,34 @@ def main():
                                      widthline-spaceprog-widthprog/2),
                                  widthprog)
 
-            # 渲染文字
-            titlepos = t_title.show(screen,
-                                    current_music.split('\\')[-1],
-                                    color[colorfile],
-                                    (sizex - widthline)/2,
-                                    (sizex*0.75+widthline*0.25, 10)).midbottom
-            t_state.show(screen,
-                         get_state(),
-                         color[colorstate],
-                         (sizex - widthline)/2,
-                         titlepos)
+        # 渲染文字
             t_time.show(screen,
                         convertime(getime()//1000)+'/' +
                         convertime(total_time//1000),
                         color[colortime],
-                        (sizex - widthline)/2,
                         (sizex*0.75+widthline*0.25, sizey-sizebt-spacebt-widthline-10))
+        titlepos = t_title.show(screen,
+                                current_music.split(
+                                    '\\')[-1] if current_music else '请打开文件',
+                                color[colorfile],
+                                (sizex*0.75+widthline*0.25, 10),
+                                maxwidth=(sizex - widthline)/2).midbottom
+        t_state.show(screen,
+                     state,
+                     color[colorstate],
+                     titlepos)
+        if pagebt == 1:
+            t_timer.show(screen,
+                         convertime(stop_time*60),
+                         color[colortimer],
+                         (sizex-10, sizey-(sizebt+spacebt)/2),
+                         maxheight=sizebt+spacebt)
 
         # 处理事件
         for event in pygame.event.get():
             # 关闭窗口
             if event.type == pygame.QUIT:
+                running = False
                 pygame.quit()
                 return
 
@@ -386,7 +496,7 @@ def main():
                                        (event.pos[0]-rectprog.left)/rectprog.width)
                         print('set time to', to_point)
                         setpoint(to_point)
-                for button in buttons:
+                for button in buttons[pagebt]:
                     button.test_click(event.pos)
 
             # 鼠标放开
@@ -404,8 +514,14 @@ def main():
             # 音乐结束
             if event.type == MUSICEND:
                 stop(bt_play)
-                if repeat:
-                    play_pause(bt_play)
+                if cont:
+                    if repeat:
+                        play_pause(bt_play)
+                    else:
+                        pass
+                else:
+                    stop_time = 0
+                    clock = False
 
             # 按下按键
             if event.type == pygame.KEYDOWN:

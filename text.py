@@ -7,13 +7,17 @@ class Text():
         self.maxsize = maxsize
         self.align = align
 
-    def show(self, screen, text, color, maxwidth, pos):
+    def show(self, screen, text, color, pos, maxwidth=10000, maxheight=10000):
         render = pygame.font.Font(
             self.font, self.maxsize).render(text, True, color)
         rect = render.get_rect()
         if rect.width > maxwidth:
             render = pygame.font.Font(self.font, int(
                 self.maxsize*maxwidth/rect.width)).render(text, True, color)
+            rect = render.get_rect()
+        if rect.height > maxheight:
+            render = pygame.font.Font(self.font, int(
+                self.maxsize*maxheight/rect.height)).render(text, True, color)
             rect = render.get_rect()
 
         # 对齐方式
