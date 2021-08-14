@@ -4,6 +4,7 @@ from mutagen.mp3 import MP3
 from configparser import ConfigParser
 from pygame.color import THECOLORS as color
 import _thread
+import os
 import time
 import easygui
 import pygame
@@ -11,24 +12,32 @@ import win32api
 import win32gui
 import win32con
 
-version = 'PyPigPlayer v0.7'
+version = 'PyPigPlayer v0.8'
 total_time = 0
 offset_time = 0
 start_time = 0
 stop_time = 0
 pagebt = 0
 volume = 0
+current_tm = 0
 clock = False
 repeat = False
 cont = True
 running = True
 state = None
+lrc = None
+timemark = None
 current_music = None
 MUSICEND = pygame.USEREVENT
 
 
 def convertime(sec):
     return '{:0>2d}:{:0>2d}'.format(*divmod(max(sec, 0), 60))
+
+
+def convertimemark(mark):
+    m, s = mark.split(':')
+    return int(int(m)*60000+float(s)*1000)
 
 
 def getime():
@@ -46,7 +55,7 @@ def set_repeat():
 
 
 def openfile(btn):
-    global current_music, total_time, offset_time
+    global current_music, current_tm, total_time, offset_time, lrc, timemark
     # 打开文件对话框
     file = easygui.fileopenbox(default='*.mp3')
     if file:
@@ -63,12 +72,34 @@ def openfile(btn):
             print('Getting total time', end='...')
             total_time = int(MP3(current_music).info.length*1000)
             print(total_time)
+            # 解析歌词
+            print('Parse lrc file', end='...')
+            lrcfile = current_music[:-3]+'lrc'
+            if os.path.exists(lrcfile):
+                with open(lrcfile) as f:
+                    parselrc(f.readlines())
+                current_tm = 0
+                print('Done')
+            else:
+                timemark = None
+                print('Not exist')
             offset_time = 0
             pygame.mixer.music.play()
             pygame.mixer.music.pause()
         except Exception as e:
             easygui.msgbox('载入文件失败:'+str(e))
             current_music = None
+
+
+def parselrc(file):
+    global lrc, timemark
+    lrc = {-1: ''}
+    timemark = [-1]
+    for line in file:
+        for i in range(len(tmp := line[1:].replace('][', ']').split(']'))-1):
+            lrc[convertimemark(tmp[i])] = tmp[-1].replace('\n', '').strip()
+            timemark.append(convertimemark(tmp[i]))
+    timemark.sort()
 
 
 def play_pause(btn):
@@ -88,12 +119,12 @@ def play_pause(btn):
 
 
 def stop(btn):
-    global is_paused, offset_time
+    global current_tm, offset_time
+    current_tm = 0
     pygame.mixer.music.stop()
     pygame.mixer.music.play()
     pygame.mixer.music.pause()
     btn.set_img('play')
-    is_paused = False
     offset_time = 0
 
 
@@ -182,7 +213,7 @@ def time_on_off(x):
 
 
 def main():
-    global state, pagebt, cont, repeat, stop_time, running, clock, volume
+    global state, pagebt, cont, repeat, stop_time, running, clock, volume, current_tm
 
     # 打开配置文件
     cp = ConfigParser()
@@ -219,8 +250,14 @@ def main():
         fontstate = conf['state_font']
         maxsizestate = int(conf['state_font_max_size'])
         colorstate = conf['state_font_color']
-        if colorfile not in color.keys():
-            raise ValueError(colorfile+'不是有效的颜色名称!')
+        if colorstate not in color.keys():
+            raise ValueError(colorstate+'不是有效的颜色名称!')
+
+        fontlrc = conf['lrc_font']
+        maxsizelrc = int(conf['lrc_font_max_size'])
+        colorlrc = conf['lrc_font_color']
+        if colorlrc not in color.keys():
+            raise ValueError(colorlrc+'不是有效的颜色名称!')
 
         fonttime = conf['time_font']
         maxsizetime = int(conf['time_font_max_size'])
@@ -383,6 +420,7 @@ def main():
     # 初始化字体
     t_title = Text(fontfile, maxsizefile, 'mu')
     t_state = Text(fontstate, maxsizestate, 'mu')
+    t_lrc = Text(fontlrc, maxsizelrc, 'md')
     t_time = Text(fonttime, maxsizetime, 'md')
     t_timer = Text(fonttimer, maxsizetimer, 'rm')
 
@@ -457,6 +495,17 @@ def main():
                                  widthprog)
 
         # 渲染文字
+            if timemark:
+                while current_tm+1 < len(timemark) and getime() > timemark[current_tm+1]:
+                    current_tm += 1
+                while current_tm and getime() < timemark[current_tm]:
+                    current_tm -= 1
+                t_lrc.show(screen,
+                           lrc[timemark[current_tm]],
+                           color[colorlrc],
+                           (sizex*0.75+widthline*0.25, sizey-sizebt -
+                            spacebt-widthline-spaceprog*2-widthprog),
+                           maxwidth=(sizex - widthline)/2)
             t_time.show(screen,
                         convertime(getime()//1000)+'/' +
                         convertime(total_time//1000),
