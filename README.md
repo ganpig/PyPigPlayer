@@ -1,6 +1,7 @@
 # PyPigPlayer
 
 使用 Pygame 实现的简洁音乐播放器。
+
 **注意：因 Python 3.9 兼容性问题，本程序仅支持 Windows 10 及以上版本系统。**
 
 # 当前支持功能
