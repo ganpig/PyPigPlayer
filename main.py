@@ -12,7 +12,7 @@ import win32api
 import win32gui
 import win32con
 
-version = 'PyPigPlayer v0.8'
+version = 'PyPigPlayer v0.9'
 total_time = 0
 offset_time = 0
 start_time = 0
@@ -44,13 +44,15 @@ def getime():
     return pygame.mixer.music.get_pos()+offset_time
 
 
-def set_repeat():
+def set_repeat(btn):
     global repeat
     if repeat:
         repeat = False
+        btn.set_img('repeat')
         print('Repeat off')
     else:
         repeat = True
+        btn.set_img('repeat1')
         print('Repeat on')
 
 
@@ -258,6 +260,9 @@ def main():
         colorlrc = conf['lrc_font_color']
         if colorlrc not in color.keys():
             raise ValueError(colorlrc+'不是有效的颜色名称!')
+        colorlrcur = conf['current_lrc_font_color']
+        if colorlrcur not in color.keys():
+            raise ValueError(colorlrcur+'不是有效的颜色名称!')
 
         fonttime = conf['time_font']
         maxsizetime = int(conf['time_font_max_size'])
@@ -362,6 +367,11 @@ def main():
     bt_open.set_img('plus')
     bt_open.onclick = lambda: _thread.start_new_thread(openfile, (bt_play,))
 
+    # “上一首”按钮
+    bt_last = Button(5)
+    bt_last.set_img('last')
+    bt_last.onclick = lambda: easygui.msgbox('上一首')
+
     # “快退”按钮
     bt_back = Button(6)
     bt_back.set_img('back')
@@ -377,10 +387,15 @@ def main():
     bt_forward.set_img('forward')
     bt_forward.onclick = lambda: forward(timef)
 
+    # “下一首”按钮
+    bt_next = Button(9)
+    bt_next.set_img('next')
+    bt_next.onclick = lambda: easygui.msgbox('下一首')
+
     # “重复”按钮
     bt_repeat = Button(12)
     bt_repeat.set_img('repeat')
-    bt_repeat.onclick = set_repeat
+    bt_repeat.onclick = lambda: set_repeat(bt_repeat)
 
     # “音量-”按钮
     bt_volm = Button(13)
@@ -393,8 +408,8 @@ def main():
     bt_volp.onclick = lambda: volup(stepu)
 
     # 按钮列表0
-    buttons_0 = [bt_time, bt_open, bt_back, bt_play,
-                 bt_forward, bt_repeat, bt_volm, bt_volp]
+    buttons_0 = [bt_time, bt_open,  bt_back, bt_play,
+                 bt_forward,  bt_repeat, bt_volm, bt_volp]
 
     # “关闭计时器”按钮
     bt_offtime = Button(1)
@@ -420,7 +435,7 @@ def main():
     # 初始化字体
     t_title = Text(fontfile, maxsizefile, 'mu')
     t_state = Text(fontstate, maxsizestate, 'mu')
-    t_lrc = Text(fontlrc, maxsizelrc, 'md')
+    t_lrc = Text(fontlrc, maxsizelrc, 'mm')
     t_time = Text(fonttime, maxsizetime, 'md')
     t_timer = Text(fonttimer, maxsizetimer, 'rm')
 
@@ -495,32 +510,49 @@ def main():
                                  widthprog)
 
         # 渲染文字
-            if timemark:
-                while current_tm+1 < len(timemark) and getime() > timemark[current_tm+1]:
-                    current_tm += 1
-                while current_tm and getime() < timemark[current_tm]:
-                    current_tm -= 1
-                t_lrc.show(screen,
-                           lrc[timemark[current_tm]],
-                           color[colorlrc],
-                           (sizex*0.75+widthline*0.25, sizey-sizebt -
-                            spacebt-widthline-spaceprog*2-widthprog),
-                           maxwidth=(sizex - widthline)/2)
-            t_time.show(screen,
-                        convertime(getime()//1000)+'/' +
-                        convertime(total_time//1000),
-                        color[colortime],
-                        (sizex*0.75+widthline*0.25, sizey-sizebt-spacebt-widthline-10))
         titlepos = t_title.show(screen,
                                 current_music.split(
                                     '\\')[-1] if current_music else '请打开文件',
                                 color[colorfile],
                                 (sizex*0.75+widthline*0.25, 10),
                                 maxwidth=(sizex - widthline)/2).midbottom
-        t_state.show(screen,
-                     state,
-                     color[colorstate],
-                     titlepos)
+        statepos = t_state.show(screen,
+                                state,
+                                color[colorstate],
+                                titlepos).bottom
+        if current_music:
+            timepos = t_time.show(screen,
+                                  convertime(getime()//1000)+'/' +
+                                  convertime(total_time//1000),
+                                  color[colortime],
+                                  (sizex*0.75+widthline*0.25, sizey-sizebt-spacebt-widthline-10)).top
+            if timemark:
+                while current_tm+1 < len(timemark) and getime() > timemark[current_tm+1]:
+                    current_tm += 1
+                while current_tm and getime() < timemark[current_tm]:
+                    current_tm -= 1
+                rectlrc = t_lrc.show(screen,
+                                     lrc[timemark[current_tm]],
+                                     color[colorlrcur],
+                                     (sizex*0.75+widthline*0.25,
+                                      (statepos+timepos)/2),
+                                     maxwidth=(sizex - widthline)/2)
+                num_lrc = int((rectlrc.top-statepos-10)/rectlrc.height)
+                for i in range(1, num_lrc+1):
+                    if current_tm-i > 0:
+                        t_lrc.show(screen,
+                                   lrc[timemark[current_tm-i]],
+                                   color[colorlrc],
+                                   (sizex*0.75+widthline*0.25,
+                                       (statepos+timepos)/2-i*rectlrc.height),
+                                   maxwidth=(sizex - widthline)/2)
+                    if current_tm+i < len(timemark):
+                        t_lrc.show(screen,
+                                   lrc[timemark[current_tm+i]],
+                                   color[colorlrc],
+                                   (sizex*0.75+widthline*0.25,
+                                       (statepos+timepos)/2+i*rectlrc.height),
+                                   maxwidth=(sizex - widthline)/2)
         if pagebt == 1:
             t_timer.show(screen,
                          convertime(stop_time*60),
@@ -600,8 +632,8 @@ def main():
                         print('Fullscreen on')
                         fullscreen = 1
                         sizex, sizey = size = (screenx, screeny)
-                        screen = pygame.display.set_mode(size,
-                                                         pygame.FULLSCREEN | pygame.HWSURFACE)
+                        pygame.display.set_mode(
+                            size, pygame.FULLSCREEN | pygame.HWSURFACE)
                     repaint = 1
                 if event.key == pygame.K_ESCAPE:
                     if fullscreen:
