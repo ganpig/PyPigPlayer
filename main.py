@@ -6,13 +6,16 @@ from pygame.color import THECOLORS as color
 import _thread
 import os
 import time
+import json
 import easygui
 import pygame
+import urllib.parse
+import urllib.request
 import win32api
 import win32gui
 import win32con
 
-version = 'PyPigPlayer v0.9.1'
+version = 'PyPigPlayer v0.9.2'
 total_time = 0
 offset_time = 0
 start_time = 0
@@ -143,9 +146,7 @@ def openfile(btn):
             print('Parse lrc file', end='...')
             lrcfile = current_music[:-3]+'lrc'
             if os.path.exists(lrcfile):
-                with open(lrcfile) as f:
-                    parselrc(f.readlines())
-                current_tm = 0
+                parselrc(lrcfile)
                 print('Done')
             else:
                 timemark = None
@@ -154,19 +155,53 @@ def openfile(btn):
             pygame.mixer.music.play()
             pygame.mixer.music.pause()
         except Exception as e:
-            easygui.msgbox('载入文件失败:'+str(e))
+            show_msg('打开失败'+str(e), 2)
             current_music = None
 
 
 def parselrc(file):
-    global lrc, timemark
+    global lrc, timemark, current_tm
     lrc = {-1: ''}
     timemark = [-1]
-    for line in file:
-        for i in range(len(tmp := line[1:].replace('][', ']').split(']'))-1):
-            lrc[convertimemark(tmp[i])] = tmp[-1].replace('\n', '').strip()
-            timemark.append(convertimemark(tmp[i]))
+    try:
+        with open(file) as f:
+            for line in f.readlines():
+                for i in range(len(tmp := line[1:].replace('][', ']').split(']'))-1):
+                    lrc[convertimemark(tmp[i])] = tmp[-1].replace('\n', '').strip()
+                    timemark.append(convertimemark(tmp[i]))
+    except:
+        with open(file,encoding='utf-8') as f:
+            for line in f.readlines():
+                for i in range(len(tmp := line[1:].replace('][', ']').split(']'))-1):
+                    lrc[convertimemark(tmp[i])] = tmp[-1].replace('\n', '').strip()
+                    timemark.append(convertimemark(tmp[i]))
     timemark.sort()
+    current_tm = 0
+
+
+def dllrc():
+    global timemark
+    try:
+        show_msg('正在搜索歌词')
+        url = "https://api88.net/api/netease/?key=cb9744c96c6f9033&type=so&cache=0&nu=100&id=" + \
+            urllib.parse.quote(current_music.split('\\')[-1][:-4])
+        data = urllib.request.urlopen(url).read().decode()
+        data = json.loads(data)['Body']
+        print(data)
+        if not data:
+            raise ValueError('未搜索到歌曲')
+        url = data[0].get('lrc')
+        data = urllib.request.urlopen(url).read()
+        with open(current_music[:-3]+'lrc', 'wb') as f:
+            f.write(data)
+        parselrc(current_music[:-3]+'lrc')
+        if len(timemark)<=1:
+            os.remove(current_music[:-3]+'lrc')
+            timemark=None
+            raise ValueError('暂无歌词')
+        show_msg('歌词保存成功', 2)
+    except Exception as e:
+        show_msg('下载失败:'+str(e), 2)
 
 
 def play_pause(btn):
@@ -180,9 +215,9 @@ def play_pause(btn):
                 pygame.mixer.music.pause()
                 btn.set_img('play')
         else:
-            easygui.msgbox('请先打开音频文件!')
+            show_msg('请先打开音频文件', 2)
     except Exception as e:
-        easygui.msgbox(repr(e))
+        show_msg('播放失败:'+str(e), 2)
 
 
 def stop(btn):
@@ -535,6 +570,9 @@ def main():
     bt_full.set_img('fullscreen')
     bt_full.onclick = set_fullscreen
 
+    # 右侧按钮列表
+    r_list = [bt_close, bt_full]
+
     # “上一句”按钮
     bt_lastlrc = Button(2)
     bt_lastlrc.set_img('up')
@@ -545,8 +583,16 @@ def main():
     bt_nextlrc.set_img('down')
     bt_nextlrc.onclick = next_tm
 
-    # 右侧按钮列表
-    r_list = [bt_close, bt_full, bt_lastlrc, bt_nextlrc]
+    # 右侧按钮列表（有歌词）
+    r_list_lrc = [bt_lastlrc, bt_nextlrc]
+
+    # "搜索"按钮
+    bt_search = Button(2)
+    bt_search.set_img('search')
+    bt_search.onclick = lambda: _thread.start_new_thread(dllrc, tuple())
+
+    # 右侧按钮列表（无歌词）
+    r_list_mp3 = [bt_search]
 
     # 初始化字体
     t_title = Text(fontfile, maxsizefile, 'mu')
@@ -564,227 +610,253 @@ def main():
 
     # 主循环
     while True:
-        if fullscreen != last_fullscreen or size != screen.get_size():
-            # 更改窗口大小
-            sizex, sizey = screen.get_size()
-            sizex = max(sizex, minx)
-            sizey = max(sizey, miny)
-            size = (sizex, sizey)
-            print('Resize window to', size)
-            pygame.display.set_mode(size, pygame.RESIZABLE)
-            repaint = 1
-        last_fullscreen = fullscreen
+        try:
+            if fullscreen != last_fullscreen or size != screen.get_size():
+                # 更改窗口大小
+                sizex, sizey = screen.get_size()
+                sizex = max(sizex, minx)
+                sizey = max(sizey, miny)
+                size = (sizex, sizey)
+                print('Resize window to', size)
+                pygame.display.set_mode(size, pygame.RESIZABLE)
+                repaint = 1
+            last_fullscreen = fullscreen
 
-        if repaint:
-            # 重新初始化按钮栏
-            d_num = 15
-            l_num = 10
-            r_num = 10
-            d_bt, d_bar, d_space = culbt(d_num, maxsizebt, maxsizebar, sizex)
-            l_bt, l_bar, l_space = culbt(
-                l_num, maxsizebt, maxsizebar, sizey-d_bar)
-            r_bt, r_bar, r_space = culbt(
-                r_num, maxsizebt, maxsizebar, sizey-d_bar)
-            d_pos = [((i+1)*d_space+(i+0.5)*d_bt, sizey-d_bar/2)
-                     for i in range(d_num)]
-            l_pos = [(l_bar/2, (i+1)*l_space+(i+0.5)*l_bt)
-                     for i in range(l_num)]
-            r_pos = [(sizex-r_bar/2, (i+1)*r_space+(i+0.5)*r_bt)
-                     for i in range(r_num)]
-            repaint = 0
+            if repaint:
+                # 重新初始化按钮栏
+                d_num = 15
+                l_num = 10
+                r_num = 10
+                d_bt, d_bar, d_space = culbt(
+                    d_num, maxsizebt, maxsizebar, sizex)
+                l_bt, l_bar, l_space = culbt(
+                    l_num, maxsizebt, maxsizebar, sizey-d_bar)
+                r_bt, r_bar, r_space = culbt(
+                    r_num, maxsizebt, maxsizebar, sizey-d_bar)
+                d_pos = [((i+1)*d_space+(i+0.5)*d_bt, sizey-d_bar/2)
+                         for i in range(d_num)]
+                l_pos = [(l_bar/2, (i+1)*l_space+(i+0.5)*l_bt)
+                         for i in range(l_num)]
+                r_pos = [(sizex-r_bar/2, (i+1)*r_space+(i+0.5)*r_bt)
+                         for i in range(r_num)]
+                repaint = 0
 
-            # 计算边界
-            lledge = 10
-            lmedge = l_bar+10
-            lredge = (sizex-widthline)/2-10
-            lmid = (lledge+lredge)/2
-            lwidth = lredge-lledge
-            lmmid = (lmedge+lredge)/2
-            lmwidth = lredge-lmedge
+                # 计算边界
+                lledge = 10
+                lmedge = l_bar+10
+                lredge = (sizex-widthline)/2-10
+                lmid = (lledge+lredge)/2
+                lwidth = lredge-lledge
+                lmmid = (lmedge+lredge)/2
+                lmwidth = lredge-lmedge
 
-            rledge = (sizex+widthline)/2+10
-            rmedge = sizex-r_bar-10
-            rredge = sizex-10
-            rmid = (rledge+rredge)/2
-            rwidth = rredge-rledge
-            rmmid = (rledge+rmedge)/2
-            rmwidth = rmedge-rledge
+                rledge = (sizex+widthline)/2+10
+                rmedge = sizex-r_bar-10
+                rredge = sizex-10
+                rmid = (rledge+rredge)/2
+                rwidth = rredge-rledge
+                rmmid = (rledge+rmedge)/2
+                rmwidth = rmedge-rledge
 
-        # 填充背景
-        screen.fill(color[colorbg])
+            # 填充背景
+            screen.fill(color[colorbg])
 
-        # 显示按钮
-        for button in d_list[pagebt]:
-            button.show(screen, d_pos[button.id], d_bt)
-        for button in r_list:
-            button.show(screen, r_pos[button.id], r_bt)
+            # 显示按钮
+            for button in d_list[pagebt]:
+                button.show(screen, d_pos[button.id], d_bt)
+            for button in r_list:
+                button.show(screen, r_pos[button.id], r_bt)
+            if current_music:
+                if timemark:
+                    for button in r_list_lrc:
+                        button.show(screen, r_pos[button.id], r_bt)
+                else:
+                    for button in r_list_mp3:
+                        button.show(screen, r_pos[button.id], r_bt)
 
-        # 渲染文字
-        titlepos = t_title.show(screen,
-                                current_music.split(
-                                    '\\')[-1] if current_music else '请打开文件',
-                                color[colorfile],
-                                (rmmid, 10),
-                                maxwidth=rmwidth).bottom
-        if msg:
-            t_msg.show(screen,
-                       msg,
-                       color[colormsg],
-                       (lmmid, sizey-d_bar-widthline-10),
-                       maxwidth=lmwidth)
-        if msg or not current_music:
-            statepos = t_state.show(screen,
-                                    state,
-                                    color[colorstate],
-                                    (rmmid, sizey-d_bar-widthline-10),
-                                    maxwidth=rmwidth).top
-        else:
-            statepos = t_state.show(screen,
-                                    state,
-                                    color[colorstate],
-                                    (sizex/2, sizey-d_bar-widthline-10),
-                                    maxwidth=sizex-20).top
-        if current_music:
-            # 绘制进度条
-            rectprog = pygame.Rect(lledge,
-                                   statepos - 10-widthprog,
-                                   rredge-lledge,
-                                   widthprog)
-            progpos = rectprog.top-10
-            pygame.draw.rect(screen,
-                             color[colorprog1],
-                             rectprog)
-            if total_time:
+            # 渲染文字
+            titlepos = t_title.show(screen,
+                                    current_music.split(
+                                        '\\')[-1][:-4] if current_music else '请打开文件',
+                                    color[colorfile],
+                                    (rmmid, 10),
+                                    maxwidth=rmwidth).bottom
+            if msg:
+                t_msg.show(screen,
+                           msg,
+                           color[colormsg],
+                           (lmmid, sizey-d_bar-widthline-10),
+                           maxwidth=lmwidth)
+            if msg or not current_music:
+                statepos = t_state.show(screen,
+                                        state,
+                                        color[colorstate],
+                                        (rmmid, sizey-d_bar-widthline-10),
+                                        maxwidth=rmwidth).top
+            else:
+                statepos = t_state.show(screen,
+                                        state,
+                                        color[colorstate],
+                                        (sizex/2, sizey-d_bar-widthline-10),
+                                        maxwidth=sizex-20).top
+            if current_music:
+                # 绘制进度条
+                rectprog = pygame.Rect(lledge,
+                                       statepos - 10-widthprog,
+                                       rredge-lledge,
+                                       widthprog)
+                progpos = rectprog.top-10
                 pygame.draw.rect(screen,
-                                 color[colorprog2],
-                                 pygame.Rect(lledge,
-                                             statepos - 10-widthprog,
-                                             (rredge-lledge) *
-                                             getime()/total_time,
-                                             widthprog))
-            # 显示时间
-            t_time.show(screen,
-                        convertime(getime()//1000)+'/' +
-                        convertime(total_time//1000),
-                        color[colortime],
-                        rectprog.center)
-            if timemark:
-                # 显示歌词
-                while current_tm+1 < len(timemark) and getime() > timemark[current_tm+1]:
-                    current_tm += 1
-                while current_tm and getime() < timemark[current_tm]:
-                    current_tm -= 1
-                h_lrc, rectlrc = t_lrc.show(screen,
-                                            lrc[timemark[current_tm]],
-                                            color[colorlrcur],
-                                            (rmmid,
-                                             (titlepos+rectprog.top)/2),
-                                            maxwidth=rmwidth,
-                                            getheight=True)
-                num_lrc = int((rectlrc.top-titlepos-10)/h_lrc)
-                for i in range(1, num_lrc+1):
-                    if current_tm-i > 0:
-                        t_lrc.show(screen,
-                                   lrc[timemark[current_tm-i]],
-                                   color[colorlrc],
-                                   (rmmid,
-                                       (titlepos+rectprog.top)/2-i*h_lrc),
-                                   maxwidth=rmwidth,
-                                   maxheight=h_lrc)
-                    if current_tm+i < len(timemark):
-                        t_lrc.show(screen,
-                                   lrc[timemark[current_tm+i]],
-                                   color[colorlrc],
-                                   (rmmid,
-                                       (titlepos+rectprog.top)/2+i*h_lrc),
-                                   maxwidth=rmwidth,
-                                   maxheight=h_lrc)
-        else:
-            progpos = sizey-d_bar-widthline/2
-        if pagebt == 1:
-            t_timer.show(screen,
-                         convertime(stop_time*60),
-                         color[colortimer],
-                         (sizex-10, sizey-d_bar/2),
-                         maxheight=d_bar)
+                                 color[colorprog1],
+                                 rectprog)
+                if total_time:
+                    pygame.draw.rect(screen,
+                                     color[colorprog2],
+                                     pygame.Rect(lledge,
+                                                 statepos - 10-widthprog,
+                                                 (rredge-lledge) *
+                                                 getime()/total_time,
+                                                 widthprog))
+                # 显示时间
+                t_time.show(screen,
+                            convertime(getime()//1000)+'/' +
+                            convertime(total_time//1000),
+                            color[colortime],
+                            rectprog.center)
+                if timemark:
+                    # 显示歌词
+                    while current_tm+1 < len(timemark) and getime() > timemark[current_tm+1]:
+                        current_tm += 1
+                    while current_tm and getime() < timemark[current_tm]:
+                        current_tm -= 1
+                    h_lrc, rectlrc = t_lrc.show(screen,
+                                                lrc[timemark[current_tm]],
+                                                color[colorlrcur],
+                                                (rmmid,
+                                                 (titlepos+rectprog.top)/2),
+                                                maxwidth=rmwidth,
+                                                getheight=True)
+                    num_lrc = int((rectlrc.top-titlepos-10)/h_lrc)
+                    for i in range(1, num_lrc+1):
+                        if current_tm-i > 0:
+                            t_lrc.show(screen,
+                                       lrc[timemark[current_tm-i]],
+                                       color[colorlrc],
+                                       (rmmid,
+                                        (titlepos+rectprog.top)/2-i*h_lrc),
+                                       maxwidth=rmwidth,
+                                       maxheight=h_lrc)
+                        if current_tm+i < len(timemark):
+                            t_lrc.show(screen,
+                                       lrc[timemark[current_tm+i]],
+                                       color[colorlrc],
+                                       (rmmid,
+                                        (titlepos+rectprog.top)/2+i*h_lrc),
+                                       maxwidth=rmwidth,
+                                       maxheight=h_lrc)
+            else:
+                progpos = sizey-d_bar-widthline/2
+            if pagebt == 1:
+                t_timer.show(screen,
+                             convertime(stop_time*60),
+                             color[colortimer],
+                             (sizex-10, sizey-d_bar/2),
+                             maxheight=d_bar)
 
-        # 绘制线
-        pygame.draw.line(screen,
-                         color[colorline],
-                         (0, sizey-d_bar-widthline/2),
-                         (sizex, sizey-d_bar-widthline/2),
-                         widthline)
-        pygame.draw.line(screen,
-                         color[colorline],
-                         (sizex/2, 0),
-                         (sizex/2, progpos),
-                         widthline)
+            # 绘制线
+            pygame.draw.line(screen,
+                             color[colorline],
+                             (0, sizey-d_bar-widthline/2),
+                             (sizex, sizey-d_bar-widthline/2),
+                             widthline)
+            pygame.draw.line(screen,
+                             color[colorline],
+                             (sizex/2, 0),
+                             (sizex/2, progpos),
+                             widthline)
 
-        # 处理事件
-        for event in pygame.event.get():
-            # 关闭窗口
-            if event.type == pygame.QUIT:
-                close()
-                return
-
-            # 鼠标按下
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                mouse = 1
-                if current_music:
-                    if rectprog.collidepoint(event.pos):
-                        to_point = int(total_time *
-                                       (event.pos[0]-rectprog.left)/rectprog.width)
-                        print('set time to', to_point)
-                        setpoint(to_point)
-                for button in d_list[pagebt]:
-                    button.test_click(event.pos)
-                for button in r_list:
-                    button.test_click(event.pos)
-                if not running:
+            # 处理事件
+            for event in pygame.event.get():
+                # 关闭窗口
+                if event.type == pygame.QUIT:
+                    close()
                     return
 
-            # 鼠标放开
-            if event.type == pygame.MOUSEBUTTONUP:
-                mouse = 0
-
-            # 鼠标拖动
-            if event.type == pygame.MOUSEMOTION:
-                if mouse:
+                # 鼠标按下
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    mouse = 1
                     if current_music:
                         if rectprog.collidepoint(event.pos):
-                            setpoint(int(
-                                total_time*(event.pos[0]-rectprog.left)/rectprog.width))
+                            to_point = int(total_time *
+                                           (event.pos[0]-rectprog.left)/rectprog.width)
+                            print('set time to', to_point)
+                            setpoint(to_point)
+                    for button in d_list[pagebt]:
+                        button.test_click(event.pos)
+                    if current_music:
+                        if timemark:
+                            for button in r_list_lrc:
+                                button.test_click(event.pos)
+                        else:
+                            for button in r_list_mp3:
+                                button.test_click(event.pos)
+                    for button in r_list:
+                        button.test_click(event.pos)
+                    if not running:
+                        return
 
-            # 音乐结束
-            if event.type == MUSICEND:
-                if cont:
-                    stop(bt_play)
-                    if repeat:
+                # 鼠标放开
+                if event.type == pygame.MOUSEBUTTONUP:
+                    mouse = 0
+
+                # 鼠标拖动
+                if event.type == pygame.MOUSEMOTION:
+                    if mouse:
+                        if current_music:
+                            if rectprog.collidepoint(event.pos):
+                                setpoint(int(
+                                    total_time*(event.pos[0]-rectprog.left)/rectprog.width))
+
+                # 音乐结束
+                if event.type == MUSICEND:
+                    if cont:
+                        stop(bt_play)
+                        if repeat:
+                            play_pause(bt_play)
+                    else:
+                        clear_msg()
+                        unload(bt_play)
+
+                # 按下按键
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_SPACE:
                         play_pause(bt_play)
-                else:
-                    clear_msg()
-                    unload(bt_play)
+                    if event.key == pygame.K_UP:
+                        last_tm()
+                    if event.key == pygame.K_DOWN:
+                        next_tm()
+                    if event.key == pygame.K_LEFT:
+                        back(timeb)
+                    if event.key == pygame.K_RIGHT:
+                        forward(timef)
+                    if event.key == pygame.K_F11:
+                        set_fullscreen()
+                    if event.key == pygame.K_ESCAPE:
+                        set_fullscreen(0)
 
-            # 按下按键
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE:
-                    play_pause(bt_play)
-                if event.key == pygame.K_UP:
-                    last_tm()
-                if event.key == pygame.K_DOWN:
-                    next_tm()
-                if event.key == pygame.K_LEFT:
-                    back(timeb)
-                if event.key == pygame.K_RIGHT:
-                    forward(timef)
-                if event.key == pygame.K_F11:
-                    set_fullscreen()
-                if event.key == pygame.K_ESCAPE:
-                    set_fullscreen(0)
+            # 刷新窗口
+            pygame.display.update()
+        except Exception as e:
+            print(repr(e))
 
-        # 刷新窗口
-        pygame.display.update()
+
+def program():
+    try:
+        main()
+    except:
+        if easygui.ynbox('PyPigPlayer崩溃了~是否重新打开?'):
+            program()
 
 
 if __name__ == '__main__':
-    main()
+    program()
