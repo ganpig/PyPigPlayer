@@ -1,9 +1,8 @@
 import pygame
 
 
-class Button(pygame.sprite.Sprite):
+class Button():
     def __init__(self, id):
-        pygame.sprite.Sprite.__init__(self)
         self.id = id
         self.img = None
 
@@ -11,7 +10,7 @@ class Button(pygame.sprite.Sprite):
         if self.img:
             img = pygame.transform.scale(self.img, (int(size),)*2)
             self.rect = img.get_rect()
-            self.rect.left, self.rect.top = pos
+            self.rect.center = pos
             screen.blit(img, self.rect)
 
     def set_img(self, img):
