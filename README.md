@@ -1,6 +1,6 @@
 # PyPigPlayer
 
-使用 Pygame 实现的简洁音乐播放器。
+使用 Pygame 实现的简洁音乐播放器，支持 MP3 & LRC ，即将提供搜索歌曲等功能。
 
 **注意：因 Python 3.9 兼容性问题，本程序不支持 Windows 7 以下系统。**
 
