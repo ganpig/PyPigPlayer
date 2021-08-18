@@ -15,7 +15,7 @@ import win32api
 import win32gui
 import win32con
 
-version = 'PyPigPlayer v0.9.2'
+version = 'PyPigPlayer v0.9.4'
 total_time = 0
 offset_time = 0
 start_time = 0
@@ -317,7 +317,11 @@ def time_on_off(x):
         clock = True
 
 
-def culbt(n, mt, mb, x):
+def culbt(n, mt, mb, x, y=10000):
+    if y <= mb:
+        k = y/mb
+        mt *= k
+        mb *= k
     ms = (mb-mt)/2
     if x >= n*(mt+ms)+ms:
         return mt, mb, (x-n*mt)/(n+1)
@@ -351,15 +355,21 @@ def main():
 
         maxsizebt = int(conf['button_max_size'])
         maxsizebar = int(conf['bar_max_size'])
+        maxbarpercent = int(conf['bar_max_percent'])
+        maxsbarpercent = int(conf['sidebar_max_percent'])
 
         widthline = int(conf['line_width'])
         colorline = conf['line_color']
         if colorline not in color.keys():
             raise ValueError(colorline+'不是有效的颜色名称!')
 
-        colorbg = conf['background_color']
-        if colorbg not in color.keys():
-            raise ValueError(colorbg+'不是有效的颜色名称!')
+        showimg = int(conf['show_background_image'])
+        if showimg:
+            imgbg = pygame.image.load(conf['background_image'])
+        else:
+            colorbg = conf['background_color']
+            if colorbg not in color.keys():
+                raise ValueError(colorbg+'不是有效的颜色名称!')
 
         fontfile = conf['file_font']
         maxsizefile = int(conf['file_font_max_size'])
@@ -409,7 +419,7 @@ def main():
             raise ValueError(colorprog2+'不是有效的颜色名称!')
 
     except Exception as e:
-        easygui.msgbox('读取外观参数时发生异常:'+str(e))
+        easygui.msgbox('读取外观参数时发生异常:'+repr(e))
         return
 
     # 读取播放器参数
@@ -428,7 +438,7 @@ def main():
         timem = int(conf['timer_shorter_step'])
 
     except Exception as e:
-        easygui.msgbox('读取播放器参数时发生异常:'+str(e))
+        easygui.msgbox('读取播放器参数时发生异常:'+repr(e))
         return
 
     # 读取按键参数
@@ -439,7 +449,7 @@ def main():
         intervalkey = int(conf['repeat_interval'])
 
     except Exception as e:
-        easygui.msgbox('读取按键参数时发生异常:'+str(e))
+        easygui.msgbox('读取按键参数时发生异常:'+repr(e))
         return
 
     # 获取屏幕分辨率
@@ -473,17 +483,6 @@ def main():
 
     # 设置按键重复
     pygame.key.set_repeat(delaykey, intervalkey)
-
-    # 初始化按钮栏
-    d_num = 15
-    l_num = 10
-    r_num = 10
-    d_bt, d_bar, d_space = culbt(d_num, maxsizebt, maxsizebar, sizex)
-    l_bt, l_bar, l_space = culbt(l_num, maxsizebt, maxsizebar, sizey-d_bar)
-    r_bt, r_bar, r_space = culbt(r_num, maxsizebt, maxsizebar, sizey-d_bar)
-    d_pos = [((i+1)*d_space+(i+0.5)*d_bt, sizey-d_bar/2) for i in range(d_num)]
-    l_pos = [(l_bar/2, (i+1)*l_space+(i+0.5)*l_bt) for i in range(l_num)]
-    r_pos = [(sizex-r_bar/2, (i+1)*r_space+(i+0.5)*r_bt) for i in range(r_num)]
 
     # “定时”按钮
     bt_time = Button(0)
@@ -623,16 +622,20 @@ def main():
             last_fullscreen = fullscreen
 
             if repaint:
-                # 重新初始化按钮栏
+                # 初始化按钮栏
                 d_num = 15
-                l_num = 10
-                r_num = 10
+                l_num = 4
+                r_num = 4
                 d_bt, d_bar, d_space = culbt(
-                    d_num, maxsizebt, maxsizebar, sizex)
+                    d_num, maxsizebt, maxsizebar, sizex, sizey*maxbarpercent/100)
                 l_bt, l_bar, l_space = culbt(
-                    l_num, maxsizebt, maxsizebar, sizey-d_bar)
+                    l_num, maxsizebt, maxsizebar, sizey*maxsbarpercent/100)
+                if l_bt > d_bt:
+                    l_bt, l_bar, l_space = d_bt, d_bar, d_space
                 r_bt, r_bar, r_space = culbt(
-                    r_num, maxsizebt, maxsizebar, sizey-d_bar)
+                    r_num, maxsizebt, maxsizebar, sizey*maxsbarpercent/100)
+                if r_bt > d_bt:
+                    r_bt, r_bar, r_space = d_bt, d_bar, d_space
                 d_pos = [((i+1)*d_space+(i+0.5)*d_bt, sizey-d_bar/2)
                          for i in range(d_num)]
                 l_pos = [(l_bar/2, (i+1)*l_space+(i+0.5)*l_bt)
@@ -659,7 +662,10 @@ def main():
                 rmwidth = rmedge-rledge
 
             # 填充背景
-            screen.fill(color[colorbg])
+            if showimg:
+                screen.blit(imgbg,(0,0))
+            else:
+                screen.fill(colorbg)
 
             # 显示按钮
             for button in d_list[pagebt]:
@@ -853,8 +859,8 @@ def main():
 def program():
     try:
         main()
-    except:
-        if easygui.ynbox('PyPigPlayer崩溃了~是否重新打开?'):
+    except Exception as e:
+        if easygui.ynbox('PyPigPlayer崩溃了~\n错误消息:'+repr(e)+'\n是否重新打开?'):
             program()
 
 
