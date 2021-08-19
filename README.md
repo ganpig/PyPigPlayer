@@ -29,17 +29,9 @@
 
 ## 三、通过源代码使用（有调试信息）
 
-### 请先安装 Python3.8 以上版本及依赖库：
+### 请先安装 Python3.8 以上版本，并运行`install.bat`安装依赖库
 
-```bash
-pip install easygui
-pip install pygame
-pip install mutagen
-pip install pywin32
-pip install pyinstaller
-```
-
-### 打开主程序：
+### 打开主程序
 
 ```bash
 python3 main.py
