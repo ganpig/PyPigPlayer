@@ -15,7 +15,7 @@ class Button():
 
     def set_img(self, img):
         if img:
-            self.img = pygame.image.load(f'img/{img}.png')
+            self.img = pygame.image.load(f'img/button/{img}.png')
         else:
             self.img = None
 

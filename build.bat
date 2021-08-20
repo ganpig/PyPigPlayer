@@ -1,5 +1,5 @@
 @echo off
-pyinstaller -F main.py -w -n PyPigPlayer
+pyinstaller -F -i img/logo.ico main.py -w -n PyPigPlayer
 rd /s /q build
 rd /s /q __pycache__
 del PyPigPlayer.spec

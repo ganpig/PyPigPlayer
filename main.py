@@ -9,13 +9,14 @@ import time
 import json
 import easygui
 import pygame
+import chardet
 import urllib.parse
 import urllib.request
 import win32api
 import win32gui
 import win32con
 
-version = 'PyPigPlayer v0.9.4'
+version = 'PyPigPlayer v0.9.5'
 total_time = 0
 offset_time = 0
 start_time = 0
@@ -163,18 +164,14 @@ def parselrc(file):
     global lrc, timemark, current_tm
     lrc = {-1: ''}
     timemark = [-1]
-    try:
-        with open(file) as f:
-            for line in f.readlines():
-                for i in range(len(tmp := line[1:].replace('][', ']').split(']'))-1):
-                    lrc[convertimemark(tmp[i])] = tmp[-1].replace('\n', '').strip()
-                    timemark.append(convertimemark(tmp[i]))
-    except:
-        with open(file,encoding='utf-8') as f:
-            for line in f.readlines():
-                for i in range(len(tmp := line[1:].replace('][', ']').split(']'))-1):
-                    lrc[convertimemark(tmp[i])] = tmp[-1].replace('\n', '').strip()
-                    timemark.append(convertimemark(tmp[i]))
+    with open(file, 'rb') as f:
+        cur_encoding = chardet.detect(f.read())['encoding']
+    print('encoding:', cur_encoding)
+    with open(file, encoding=cur_encoding) as f:
+        for line in f.readlines():
+            for i in range(len(tmp := line[1:].replace('][', ']').split(']'))-1):
+                lrc[convertimemark(tmp[i])] = tmp[-1].replace('\n', '').strip()
+                timemark.append(convertimemark(tmp[i]))
     timemark.sort()
     current_tm = 0
 
@@ -195,9 +192,9 @@ def dllrc():
         with open(current_music[:-3]+'lrc', 'wb') as f:
             f.write(data)
         parselrc(current_music[:-3]+'lrc')
-        if len(timemark)<=1:
+        if len(timemark) <= 1:
             os.remove(current_music[:-3]+'lrc')
-            timemark=None
+            timemark = None
             raise ValueError('暂无歌词')
         show_msg('歌词保存成功', 2)
     except Exception as e:
@@ -473,7 +470,7 @@ def main():
                               win32con.SWP_SHOWWINDOW)
     print('Window size is', size)
     pygame.display.set_caption(version)
-
+    
     # 设置初始音量
     volume = defaultvol/100
     pygame.mixer.music.set_volume(volume)
@@ -663,7 +660,7 @@ def main():
 
             # 填充背景
             if showimg:
-                screen.blit(imgbg,(0,0))
+                screen.blit(imgbg, (0, 0))
             else:
                 screen.fill(colorbg)
 
