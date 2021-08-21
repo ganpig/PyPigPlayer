@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "PyPigPlayer"
-#define MyAppVersion "v0.9.5"
+#define MyAppVersion "v0.9.6"
 #define MyAppPublisher "ganpig"
 #define MyAppURL "https://github.com/PyPigTools/PyPigPlayer"
 #define MyAppExeName "PyPigPlayer.exe"
@@ -22,15 +22,14 @@ DefaultDirName={autopf}\{#MyAppName}
 DisableProgramGroupPage=yes
 ; Uncomment the following line to run in non administrative install mode (install for current user only.)
 ;PrivilegesRequired=lowest
-OutputDir=D:\Programming\Projects\PyPigPlayer\archives
-OutputBaseFilename=PyPigPlayer
+OutputDir=D:\Programming\Projects\PyPigPlayer\archive
+OutputBaseFilename=PyPigPlayer_{#MyAppVersion}_setup
 SetupIconFile=D:\Programming\Projects\PyPigPlayer\img\logo.ico
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 
 [Languages]
-Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
 
 [Tasks]

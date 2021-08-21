@@ -16,7 +16,7 @@ import win32api
 import win32gui
 import win32con
 
-version = 'PyPigPlayer v0.9.5'
+version = 'PyPigPlayer v0.9.6'
 total_time = 0
 offset_time = 0
 start_time = 0
@@ -350,7 +350,9 @@ def main():
             defaultsize = tuple(eval(conf['window_default_size']))
             minx, miny = tuple(eval(conf['window_min_size']))
 
+        gold = int(conf['scale'])/100
         maxsizebt = int(conf['button_max_size'])
+
         maxsizebar = int(conf['bar_max_size'])
         maxbarpercent = int(conf['bar_max_percent'])
         maxsbarpercent = int(conf['sidebar_max_percent'])
@@ -470,7 +472,7 @@ def main():
                               win32con.SWP_SHOWWINDOW)
     print('Window size is', size)
     pygame.display.set_caption(version)
-    
+
     # 设置初始音量
     volume = defaultvol/100
     pygame.mixer.music.set_volume(volume)
@@ -644,13 +646,13 @@ def main():
                 # 计算边界
                 lledge = 10
                 lmedge = l_bar+10
-                lredge = (sizex-widthline)/2-10
+                lredge = sizex*gold-widthline/2-10
                 lmid = (lledge+lredge)/2
                 lwidth = lredge-lledge
                 lmmid = (lmedge+lredge)/2
                 lmwidth = lredge-lmedge
 
-                rledge = (sizex+widthline)/2+10
+                rledge = sizex*gold+widthline/2+10
                 rmedge = sizex-r_bar-10
                 rredge = sizex-10
                 rmid = (rledge+rredge)/2
@@ -774,8 +776,8 @@ def main():
                              widthline)
             pygame.draw.line(screen,
                              color[colorline],
-                             (sizex/2, 0),
-                             (sizex/2, progpos),
+                             (sizex*gold, 0),
+                             (sizex*gold, progpos),
                              widthline)
 
             # 处理事件
