@@ -1,5 +1,5 @@
-from text import Text
-from button import Button
+from ppp_text import Text
+from ppp_button import Button
 from mutagen.mp3 import MP3
 from configparser import ConfigParser
 from pygame.color import THECOLORS as color
@@ -16,7 +16,7 @@ import win32api
 import win32gui
 import win32con
 
-version = 'PyPigPlayer v0.9.6'
+version = 'PyPigPlayer v0.9.7'
 total_time = 0
 offset_time = 0
 start_time = 0
@@ -372,24 +372,28 @@ def main():
 
         fontfile = conf['file_font']
         maxsizefile = int(conf['file_font_max_size'])
+        minsizefile = int(conf['file_font_min_size'])
         colorfile = conf['file_font_color']
         if colorfile not in color.keys():
             raise ValueError(colorfile+'不是有效的颜色名称!')
 
         fontmsg = conf['message_font']
         maxsizemsg = int(conf['message_font_max_size'])
+        minsizemsg = int(conf['message_font_min_size'])
         colormsg = conf['message_font_color']
         if colormsg not in color.keys():
             raise ValueError(colormsg+'不是有效的颜色名称!')
 
         fontstate = conf['state_font']
         maxsizestate = int(conf['state_font_max_size'])
+        minsizestate = int(conf['state_font_min_size'])
         colorstate = conf['state_font_color']
         if colorstate not in color.keys():
             raise ValueError(colorstate+'不是有效的颜色名称!')
 
         fontlrc = conf['lrc_font']
         maxsizelrc = int(conf['lrc_font_max_size'])
+        minsizelrc = int(conf['lrc_font_min_size'])
         colorlrc = conf['lrc_font_color']
         if colorlrc not in color.keys():
             raise ValueError(colorlrc+'不是有效的颜色名称!')
@@ -399,12 +403,14 @@ def main():
 
         fonttime = conf['time_font']
         maxsizetime = int(conf['time_font_max_size'])
+        minsizetime = int(conf['time_font_min_size'])
         colortime = conf['time_font_color']
         if colortime not in color.keys():
             raise ValueError(colortime+'不是有效的颜色名称!')
 
         fonttimer = conf['timer_font']
         maxsizetimer = int(conf['timer_font_max_size'])
+        minsizetimer = int(conf['timer_font_min_size'])
         colortimer = conf['timer_font_color']
         if colortimer not in color.keys():
             raise ValueError(colortimer+'不是有效的颜色名称!')
@@ -593,12 +599,12 @@ def main():
     r_list_mp3 = [bt_search]
 
     # 初始化字体
-    t_title = Text(fontfile, maxsizefile, 'mu')
-    t_msg = Text(fontmsg, maxsizemsg, 'md')
-    t_state = Text(fontstate, maxsizestate, 'md')
-    t_lrc = Text(fontlrc, maxsizelrc, 'mm')
-    t_time = Text(fonttime, maxsizetime, 'mm')
-    t_timer = Text(fonttimer, maxsizetimer, 'rm')
+    t_title = Text(fontfile, (minsizefile, maxsizefile), 'mu')
+    t_msg = Text(fontmsg, (minsizemsg, maxsizemsg), 'md')
+    t_state = Text(fontstate, (minsizestate, maxsizestate), 'md')
+    t_lrc = Text(fontlrc, (minsizelrc, maxsizelrc), 'mm')
+    t_time = Text(fonttime, (minsizetime, maxsizetime), 'mm')
+    t_timer = Text(fonttimer, (minsizetimer, maxsizetimer), 'rm')
 
     # 启动状态更新进程
     _thread.start_new_thread(get_state, tuple())
@@ -859,7 +865,7 @@ def program():
     try:
         main()
     except Exception as e:
-        if easygui.ynbox('PyPigPlayer崩溃了~\n错误消息:'+repr(e)+'\n是否重新打开?'):
+        if easygui.ynbox(version + '崩溃了~\n错误消息:'+repr(e)+'\n是否重新打开?'):
             program()
 
 
