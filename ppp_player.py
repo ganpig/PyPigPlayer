@@ -48,7 +48,7 @@ class Player:
                 lrcfile = self.music_file[:-3] + 'lrc'
                 if exists(lrcfile):
                     with open(lrcfile, 'rb') as f:
-                        self.lrc_dic = parse_lrc(auto_decode(f.read()))
+                        self.lrc_dic = parse_lrc(auto_decode(f.read()).split('\n'))
                         self.lrc_marks = sorted(self.lrc_dic.keys())
                         self.lrc_current_mark = 0
                 else:
@@ -168,13 +168,13 @@ class Player:
                 quote(self.get_music_name())
             data = loads(urlopen(url).read().decode())['Body']
             if data:
-                self.lrc_dic = parse_lrc(auto_decode(
-                    urlopen(data[0]['lrc']).read()))
+                lrc=auto_decode(urlopen(data[0]['lrc']).read())
+                self.lrc_dic = parse_lrc(lrc.split('\n'))
                 if len(self.lrc_dic) > 2:
                     self.lrc_marks = sorted(self.lrc_dic.keys())
                     self.lrc_current_mark = 0
                     with open(self.music_file[:-3] + 'lrc', 'w') as f:
-                        print(data, file=f)
+                        print(lrc, file=f)
                     self.set_msg('歌词保存成功')
                 else:
                     self.lrc_marks = None

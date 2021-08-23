@@ -33,7 +33,7 @@ def parse_lrc(lrc):
 
 
 def auto_decode(data):
-    return data.decode(detect(data)['encoding']).split('\n')
+    return data.decode(detect(data)['encoding'])
 
 
 def upper_bound(array, num):
