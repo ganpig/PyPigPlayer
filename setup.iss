@@ -2,8 +2,8 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "PyPigPlayer"
-#define MyAppVersion "v1.0 alpha-1"
-#define ShortVersion "v1.0a1"
+#define MyAppVersion "v1.0 alpha-2"
+#define ShortVersion "v1.0a2"
 #define MyAppPublisher "ganpig"
 #define MyAppURL "https://github.com/PyPigTools/PyPigPlayer"
 #define MyAppExeName "PyPigPlayer.exe"
