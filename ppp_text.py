@@ -7,7 +7,16 @@ class Text():
         self.minsize, self.maxsize = size
         self.align = align
 
-    def show(self, screen, text, color, pos, maxwidth=10000, maxheight=10000, getwidth=False, getheight=False):
+    def show(
+            self,
+            screen,
+            text,
+            color,
+            pos,
+            maxwidth=10000,
+            maxheight=10000,
+            getwidth=False,
+            getheight=False):
         ret = []
 
         size = self.maxsize
@@ -21,13 +30,13 @@ class Text():
             ret.append(rect.height)
 
         if rect.width > maxwidth:
-            size = int(size*maxwidth/rect.width)
+            size = int(size * maxwidth / rect.width)
             render = pygame.font.Font(
                 self.font, size).render(text, True, color)
             rect = render.get_rect()
 
         if rect.height > maxheight:
-            size = int(size*maxheight/rect.height)
+            size = int(size * maxheight / rect.height)
             render = pygame.font.Font(
                 self.font, size).render(text, True, color)
             rect = render.get_rect()
@@ -39,10 +48,9 @@ class Text():
                     self.font, size).render(text, True, color)
                 rect = render.get_rect()
                 size = int(
-                    size*min(maxwidth/rect.width, maxheight/rect.height))
-                text = text[:-4]+'...'
+                    size * min(maxwidth / rect.width, maxheight / rect.height))
+                text = text[:-4] + '...'
 
-        # 对齐方式
         if self.align == 'lu':
             rect.topleft = pos
         elif self.align == 'lm':
