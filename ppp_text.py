@@ -7,27 +7,11 @@ class Text():
         self.minsize, self.maxsize = size
         self.align = align
 
-    def show(
-            self,
-            screen,
-            text,
-            color,
-            pos,
-            maxwidth=10000,
-            maxheight=10000,
-            getwidth=False,
-            getheight=False):
-        ret = []
-
+    def show(self, screen, text, color, pos, maxwidth=10000, maxheight=10000):
         size = self.maxsize
         render = pygame.font.Font(
             self.font, size).render(text, True, color)
         rect = render.get_rect()
-
-        if getwidth:
-            ret.append(rect.width)
-        if getheight:
-            ret.append(rect.height)
 
         if rect.width > maxwidth:
             size = int(size * maxwidth / rect.width)
@@ -71,9 +55,4 @@ class Text():
             rect.bottomright = pos
 
         screen.blit(render, rect)
-
-        if ret:
-            ret.append(rect)
-            return ret
-        else:
-            return rect
+        return rect

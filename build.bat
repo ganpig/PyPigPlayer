@@ -35,20 +35,20 @@ autopep8 -i -a -a -a -a -a ppp_button.py
 title Formatting ppp_config.py 50%%
 autopep8 -i -a -a -a -a -a ppp_config.py
 
-title Formatting ppp_func.py 55%%
+title Formatting ppp_file.py 55%%
+autopep8 -i -a -a -a -a -a ppp_file.py
+
+title Formatting ppp_func.py 60%%
 autopep8 -i -a -a -a -a -a ppp_func.py
 
-title Formatting ppp_player.py 60%%
+title Formatting ppp_player.py 65%%
 autopep8 -i -a -a -a -a -a ppp_player.py
 
-title Formatting ppp_text.py 65%%
+title Formatting ppp_text.py 70%%
 autopep8 -i -a -a -a -a -a ppp_text.py
 
-title Formatting ppp_window.py 70%%
+title Formatting ppp_window.py 75%%
 autopep8 -i -a -a -a -a -a ppp_window.py
-
-title Uninstalling unuseful packages 75%%
-pip uninstall autopep8 future pycodestyle pyinstaller-hooks-contrib toml -y
 
 title Building PyPigPlayer.exe 80%%
 pyinstaller -F -i img/logo.ico -w -n PyPigPlayer --distpath PyPigPlayer\ main.py

@@ -1,6 +1,6 @@
 import pygame
 from _thread import start_new_thread
-from easygui import fileopenbox
+from easygui import fileopenbox, diropenbox
 from json import loads
 from mutagen.mp3 import MP3
 from os.path import exists, expanduser
@@ -14,6 +14,7 @@ from urllib.request import urlopen
 class Player:
     def __init__(self):
         self.music_file = None
+        self.music_list = []
         self.music_total_time = 0
         self.music_offset_time = 0
         self.lrc_dic = None
@@ -36,37 +37,32 @@ class Player:
     def opened(self):
         return True if self.music_file else False
 
-    def open_file(self, btn):
-        start_new_thread(self._open, (btn,))
+    def open_file(self, btn, file):
+        try:
+            self.music_file = file
+            pygame.mixer.music.load(self.music_file)
+            self.music_total_time = int(
+                MP3(self.music_file).info.length * 1000)
+            self.music_offset_time = 0
+            self.lrc_id = 0
+            self.lrc_url = -1
+            pygame.mixer.music.play()
+            btn.set_img('pause')
+        except Exception as e:
+            self.music_file = None
+            self.error('打开失败:' + repr(e), format_exc())
 
-    def _open(self, btn):
-        file = fileopenbox(default=expanduser('~/desktop/*.mp3'))
-        if file:
-            try:
-                self.music_file = file
-                pygame.mixer.music.load(self.music_file)
-                self.music_total_time = int(
-                    MP3(self.music_file).info.length * 1000)
-                self.music_offset_time = 0
-                self.lrc_id = 0
-                self.lrc_url = -1
-
-                lrcfile = self.music_file[:-3] + 'lrc'
-                if exists(lrcfile):
-                    with open(lrcfile, 'rb') as f:
-                        self.lrc_dic = parse_lrc(
-                            auto_decode(f.read()).split('\n'))
-                        self.lrc_marks = sorted(self.lrc_dic.keys())
-                        self.lrc_current_mark = 0
-                else:
-                    self.lrc_marks = None
-
-                pygame.mixer.music.play()
-                btn.set_img('pause')
-
-            except Exception as e:
-                self.music_file = None
-                self.set_msg('打开失败:' + repr(e))
+        try:
+            lrcfile = self.music_file[:-3] + 'lrc'
+            if exists(lrcfile):
+                with open(lrcfile, 'rb') as f:
+                    self.lrc_dic = parse_lrc(auto_decode(f.read()).split('\n'))
+                    self.lrc_marks = sorted(self.lrc_dic.keys())
+                    self.lrc_current_mark = 0
+            else:
+                self.lrc_marks = None
+        except Exception as e:
+            self.error('加载歌词出错:' + repr(e), format_exc())
 
     def get_music_name(self):
         return self.music_file.split(
@@ -85,7 +81,7 @@ class Player:
                 self.set_msg('请先打开音频文件')
 
         except Exception as e:
-            self.set_msg('播放失败:' + repr(e))
+            self.error('播放失败:' + repr(e), format_exc())
 
     def music_end(self, btn):
         if self.is_timer_end():
@@ -139,12 +135,10 @@ class Player:
     def have_lrc(self):
         return True if self.lrc_marks else False
 
-    def get_lrc(self, id):
+    def get_lrc(self, id=0):
         id += self.lrc_current_mark
-        if self.have_lrc() and 0 < id < len(self.lrc_marks):
-            return self.lrc_dic[self.lrc_marks[id]]
-        else:
-            return ''
+        return self.lrc_dic[self.lrc_marks[id]] if self.have_lrc(
+        ) and 0 < id < len(self.lrc_marks) else ''
 
     def last_lrc(self):
         self.lrc_current_mark = max(self.lrc_current_mark - 1, 0)
@@ -259,9 +253,8 @@ class Player:
                 self.off_timer()
                 return ''
         else:
-            return '定时剩余' + \
-                sec_to_time(self.timer_start_time +
-                            self.timer_set_time - time())
+            return '定时剩余' + sec_to_time(self.timer_start_time +
+                                        self.timer_set_time - time())
 
     def get_timer_prog(self):
         if self.is_timer_end():
