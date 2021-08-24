@@ -36,7 +36,7 @@ if __name__ == '__main__':
         config.get_section('background')
         shimg = config.get_int('show_image')
         if shimg:
-            bgimg = pygame.image.load(config.get_file('image'))
+            bgimg = config.get_img('image')
         else:
             bgcol = config.get_color('color')
 
@@ -88,7 +88,8 @@ if __name__ == '__main__':
     try:
         pygame.init()
         window = Window(windflt, winmin, 'PyPigPlayer ' + ver)
-        screen = window.getscreen()
+        screen = window.screen
+        sizex, sizey = window.size
         player = Player()
         pygame.key.set_repeat(delay, interval)
 
@@ -118,14 +119,12 @@ if __name__ == '__main__':
 
         btn_close = Button(0, 'close', exit)
         btn_full = Button(1, 'fullscreen', window.set_fullscreen)
-        r_list = [btn_close, btn_full]
-
-        btn_lastlrc = Button(2, 'up', player.last_lrc)
-        btn_nextlrc = Button(3, 'down', player.next_lrc)
-        r_list_lrc = [btn_lastlrc, btn_nextlrc]
-
         btn_search = Button(2, 'search', player.download_lrc)
-        r_list_mp3 = [btn_search]
+        r_list = [btn_close, btn_full, btn_search]
+
+        btn_lastlrc = Button(3, 'up', player.last_lrc)
+        btn_nextlrc = Button(4, 'down', player.next_lrc)
+        r_list_lrc = [btn_lastlrc, btn_nextlrc]
 
         t_file = Text(fileft, filesize, 'mu')
         t_msg = Text(msgft, msgsize, 'md')
@@ -144,7 +143,11 @@ if __name__ == '__main__':
             K_ESCAPE: lambda: window.set_fullscreen(0)
         }
 
-        mouse = 0
+        mouse = False
+        recul = True
+        d_num = 15
+        l_num = 5
+        r_num = 5
 
     except Exception as e:
         msgbox('初始化出错:' + repr(e))
@@ -152,11 +155,69 @@ if __name__ == '__main__':
 
     while True:
         try:
-            sizex, sizey = window.getsize()
-            if window.need_repaint():
-                d_num = 15
-                l_num = 4
-                r_num = 4
+            for event in pygame.event.get():
+                if event.type == QUIT:
+                    exit()
+
+                if event.type == MOUSEBUTTONDOWN:
+                    if event.button == 1:
+                        mouse = 1
+                        for button in d_list:
+                            button.test_click(event.pos)
+                        if player.is_timer_on():
+                            btn_minus.test_click(event.pos)
+                            btn_plus.test_click(event.pos)
+                        if player.opened():
+                            if progrt.collidepoint(event.pos):
+                                player.set_prog(
+                                    (event.pos[0] - progrt.left) / progrt.width)
+                            btn_back.test_click(event.pos)
+                            btn_forward.test_click(event.pos)
+                            if player.have_lrc():
+                                for button in r_list_lrc:
+                                    button.test_click(event.pos)
+                        for button in r_list:
+                            button.test_click(event.pos)
+                    elif event.button >= 5 and event.button % 2:
+                        if player.opened():
+                            if progrt.collidepoint(event.pos):
+                                player.set_pos(
+                                    player.get_pos() + 200 * event.button)
+                            if player.have_lrc():
+                                if alllrcrt.collidepoint(event.pos):
+                                    player.next_lrc()
+                    elif event.button >= 4:
+                        if player.opened():
+                            if progrt.collidepoint(event.pos):
+                                player.set_pos(
+                                    player.get_pos() - 200 * event.button)
+                            if player.have_lrc():
+                                if alllrcrt.collidepoint(event.pos):
+                                    player.last_lrc()
+
+                if event.type == MOUSEBUTTONUP:
+                    mouse = 0
+
+                if event.type == MOUSEMOTION:
+                    if mouse:
+                        if player.opened():
+                            if progrt.collidepoint(event.pos):
+                                player.set_prog(
+                                    (event.pos[0] - progrt.left) / progrt.width)
+
+                if event.type == USEREVENT:
+                    player.music_end(btn_play)
+
+                if event.type == KEYDOWN:
+                    if event.key in key_handling.keys():
+                        key_handling[event.key]()
+
+                if event.type == VIDEORESIZE:
+                    window.resize()
+
+            if window.recul:
+                window.recul = False
+                sizex, sizey = window.size
                 d_bt, d_bar, d_space = cul_btn(
                     d_num, btnmax, barmax, sizex, sizey * barprpt)
                 l_bt, l_bar, l_space = cul_btn(
@@ -201,9 +262,6 @@ if __name__ == '__main__':
             if player.opened():
                 if player.have_lrc():
                     for button in r_list_lrc:
-                        button.show(screen, r_pos[button.id], r_bt)
-                else:
-                    for button in r_list_mp3:
                         button.show(screen, r_pos[button.id], r_bt)
 
             lrctop = t_file.show(screen,
@@ -275,6 +333,8 @@ if __name__ == '__main__':
                                              progwid))
                 t_prog.show(screen, player.get_time(), progcol, progrt.center)
                 if player.have_lrc():
+                    alllrcrt = pygame.Rect(
+                        rledge, lrctop, rmwidth, lrcbtm - lrctop)
                     lrcsp, lrcrt = t_lrc.show(screen,
                                               player.get_lrc(0),
                                               lrccol1,
@@ -314,62 +374,6 @@ if __name__ == '__main__':
                  lrcbtm if player.opened() else progbtm if player.is_timer_on() else sizey -
                  d_bar),
                 4)
-
-            for event in pygame.event.get():
-                if event.type == QUIT:
-                    exit()
-
-                if event.type == MOUSEBUTTONDOWN:
-                    if event.button == 1:
-                        mouse = 1
-                        for button in d_list:
-                            button.test_click(event.pos)
-                        if player.is_timer_on():
-                            btn_minus.test_click(event.pos)
-                            btn_plus.test_click(event.pos)
-                        if player.opened():
-                            if progrt.collidepoint(event.pos):
-                                player.set_prog(
-                                    (event.pos[0] - progrt.left) / progrt.width)
-                            btn_back.test_click(event.pos)
-                            btn_forward.test_click(event.pos)
-                            if player.have_lrc():
-                                for button in r_list_lrc:
-                                    button.test_click(event.pos)
-                            else:
-                                for button in r_list_mp3:
-                                    button.test_click(event.pos)
-                        for button in r_list:
-                            button.test_click(event.pos)
-                    elif event.button == 4:
-                        if player.opened():
-                            if progrt.collidepoint(event.pos):
-                                player.set_pos(player.get_pos() - 5000)
-                            if player.have_lrc():
-                                player.last_lrc()
-                    elif event.button == 5:
-                        if player.opened():
-                            if progrt.collidepoint(event.pos):
-                                player.set_pos(player.get_pos() + 5000)
-                            if player.have_lrc():
-                                player.next_lrc()
-
-                if event.type == MOUSEBUTTONUP:
-                    mouse = 0
-
-                if event.type == MOUSEMOTION:
-                    if mouse:
-                        if player.opened():
-                            if progrt.collidepoint(event.pos):
-                                player.set_prog(
-                                    (event.pos[0]-progrt.left) / progrt.width)
-
-                if event.type == USEREVENT:
-                    player.music_end(btn_play)
-
-                if event.type == KEYDOWN:
-                    if event.key in key_handling.keys():
-                        key_handling[event.key]()
 
             pygame.display.update()
 

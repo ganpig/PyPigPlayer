@@ -1,6 +1,7 @@
 from configparser import ConfigParser
 from os.path import exists
 from pygame.color import THECOLORS
+from pygame.image import load
 
 
 class Config:
@@ -35,9 +36,9 @@ class Config:
         data = self.get(key)
         return tuple(eval(data))
 
-    def get_file(self, key):
+    def get_img(self, key):
         data = self.get(key)
         if exists(data):
-            return data
+            return load(data)
         else:
             raise FileNotFoundError(data + '文件不存在!')

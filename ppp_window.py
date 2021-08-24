@@ -9,65 +9,52 @@ class Window:
         self.defaultsize = defaultsize
         self.minx, self.miny = minsize
         self.fullscreen = False
-        self.repaint = True
+        self.recul = True
+        self.screenx = win32api.GetSystemMetrics(
+            win32con.SM_CXSCREEN)
+        self.screeny = win32api.GetSystemMetrics(
+            win32con.SM_CYSCREEN)
         sizex, sizey = self.size = defaultsize
         self.screen = pygame.display.set_mode(self.size, pygame.RESIZABLE)
+        pygame.display.set_caption(title)
+        self.handle = win32gui.FindWindow(None, title)
+
         win32gui.SetWindowPos(
-            win32gui.GetForegroundWindow(),
+            self.handle,
             win32con.HWND_TOPMOST,
-            (win32api.GetSystemMetrics(
-                win32con.SM_CXSCREEN) - sizex) // 2,
-            (win32api.GetSystemMetrics(
-                win32con.SM_CYSCREEN) - sizey) // 2,
+            (self.screenx - sizex) // 2,
+            (self.screeny - sizey) // 2,
             sizex,
             sizey,
             win32con.SWP_SHOWWINDOW)
-        pygame.display.set_caption(title)
-
-    def resize(self, size):
-        self.size = (max(size[0], self.minx), max(size[1], self.miny))
-        pygame.display.set_mode(self.size, pygame.RESIZABLE)
-        self.repaint = True
+        self.resize()
 
     def set_fullscreen(self, mode=1):
         if self.fullscreen:
             self.fullscreen = False
+            self.recul = True
             sizex, sizey = self.size = self.defaultsize
             pygame.display.set_mode(self.size)
             pygame.display.set_mode(self.size, pygame.RESIZABLE)
             win32gui.SetWindowPos(
-                win32gui.GetForegroundWindow(),
+                self.handle,
                 win32con.HWND_TOPMOST,
-                (win32api.GetSystemMetrics(
-                    win32con.SM_CXSCREEN) - sizex) // 2,
-                (win32api.GetSystemMetrics(
-                    win32con.SM_CYSCREEN) - sizey) // 2,
+                (self.screenx - sizex) // 2,
+                (self.screeny - sizey) // 2,
                 sizex,
                 sizey,
                 win32con.SWP_SHOWWINDOW)
-            self.repaint = True
         else:
             if mode:
                 self.fullscreen = True
+                self.recul = True
                 self.size = (
-                    win32api.GetSystemMetrics(
-                        win32con.SM_CXSCREEN), win32api.GetSystemMetrics(
-                        win32con.SM_CYSCREEN))
+                    self.screenx, self.screeny)
                 pygame.display.set_mode(
                     self.size, pygame.FULLSCREEN | pygame.HWSURFACE)
-                self.repaint = True
 
-    def getsize(self):
-        if self.size != self.screen.get_size():
-            self.resize(self.screen.get_size())
-        return self.size
-
-    def getscreen(self):
-        return self.screen
-
-    def need_repaint(self):
-        if self.repaint:
-            self.repaint = False
-            return True
-        else:
-            return False
+    def resize(self):
+        self.recul = True
+        size = self.screen.get_size()
+        self.size = (max(size[0], self.minx), max(size[1], self.miny))
+        pygame.display.set_mode(self.size, pygame.RESIZABLE)

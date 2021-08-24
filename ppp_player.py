@@ -6,6 +6,7 @@ from mutagen.mp3 import MP3
 from os.path import exists, expanduser
 from ppp_func import *
 from time import time, sleep
+from traceback import format_exc
 from urllib.parse import quote
 from urllib.request import urlopen
 
@@ -17,11 +18,14 @@ class Player:
         self.music_offset_time = 0
         self.lrc_dic = None
         self.lrc_marks = None
+        self.lrc_id = 0
+        self.lrc_url = -1
         self.lrc_current_mark = 0
         self.timer = False
         self.timer_start_time = 0
         self.timer_set_time = 0
         self.repeat_mode = 0
+        self.message_cnt = 0
         self.message = None
         self.state = None
         self.volume = 50
@@ -44,11 +48,14 @@ class Player:
                 self.music_total_time = int(
                     MP3(self.music_file).info.length * 1000)
                 self.music_offset_time = 0
+                self.lrc_id = 0
+                self.lrc_url = -1
 
                 lrcfile = self.music_file[:-3] + 'lrc'
                 if exists(lrcfile):
                     with open(lrcfile, 'rb') as f:
-                        self.lrc_dic = parse_lrc(auto_decode(f.read()).split('\n'))
+                        self.lrc_dic = parse_lrc(
+                            auto_decode(f.read()).split('\n'))
                         self.lrc_marks = sorted(self.lrc_dic.keys())
                         self.lrc_current_mark = 0
                 else:
@@ -144,9 +151,9 @@ class Player:
         self.set_pos(self.lrc_marks[self.lrc_current_mark])
 
     def next_lrc(self):
-        self.lrc_current_mark = min(
-            self.lrc_current_mark + 1, len(self.lrc_marks) - 1)
-        self.set_pos(self.lrc_marks[self.lrc_current_mark])
+        if self.lrc_current_mark < len(self.lrc_marks) - 1:
+            self.lrc_current_mark += 1
+            self.set_pos(self.lrc_marks[self.lrc_current_mark])
 
     def update_lrc(self):
         try:
@@ -155,38 +162,50 @@ class Player:
                     self.lrc_current_mark = upper_bound(
                         self.lrc_marks, self.get_pos()) - 1
         except Exception as e:
-            print('线程update_lrc发生错误:' + repr(e))
+            self.error('加载歌词出错:' + repr(e), format_exc())
             self.update_lrc()
 
     def download_lrc(self):
-        start_new_thread(self._dl, tuple())
+        start_new_thread(self._dl, (self.lrc_id,))
 
-    def _dl(self):
+    def _dl(self, beginat):
         try:
-            self.set_msg('正在搜索歌词', keep=True)
-            url = "https://api88.net/api/netease/?key=cb9744c96c6f9033&type=so&cache=0&nu=100&id=" + \
-                quote(self.get_music_name())
-            data = loads(urlopen(url).read().decode())['Body']
-            if data:
-                lrc=auto_decode(urlopen(data[0]['lrc']).read())
-                self.lrc_dic = parse_lrc(lrc.split('\n'))
-                if len(self.lrc_dic) > 2:
-                    self.lrc_marks = sorted(self.lrc_dic.keys())
-                    self.lrc_current_mark = 0
-                    with open(self.music_file[:-3] + 'lrc', 'w') as f:
-                        print(lrc, file=f)
-                    self.set_msg('歌词保存成功')
+            if self.opened():
+                url = "https://api88.net/api/netease/?key=cb9744c96c6f9033&type=so&cache=0&nu=100&id=" + \
+                    quote(self.get_music_name())
+                if self.lrc_url == -1:
+                    self.set_msg('正在搜索歌曲', keep=True)
+                    self.lrc_url = loads(urlopen(url).read().decode())['Body']
+                if self.lrc_url:
+                    self.lrc_id %= len(self.lrc_url)
+                    self.set_msg('正在下载歌词' + str(self.lrc_id + 1) + '/' +
+                                 str(len(self.lrc_url)), keep=True)
+                    lrc = auto_decode(
+                        urlopen(self.lrc_url[self.lrc_id]['lrc']).read())
+                    if '暂无歌词' in lrc:
+                        if self.lrc_id == beginat - 1:
+                            self.set_msg('暂无歌词')
+                        else:
+                            self._dl(beginat)
+                    else:
+                        self.lrc_dic = parse_lrc(lrc.split('\n'))
+                        self.lrc_marks = sorted(self.lrc_dic.keys())
+                        self.lrc_current_mark = 0
+                        with open(self.music_file[:-3] + 'lrc', 'w') as f:
+                            print(lrc, file=f)
+                        self.set_msg('歌词保存成功')
                 else:
                     self.lrc_marks = None
-                    self.set_msg('暂无歌词')
+                    self.set_msg('未找到该歌曲')
             else:
-                self.lrc_marks = None
-                self.set_msg('未找到该歌曲')
+                self.set_msg('请先打开音频文件')
         except Exception as e:
             self.lrc_marks = None
-            self.set_msg('下载失败:' + repr(e))
+            self.error('下载失败:' + repr(e), format_exc())
+        self.lrc_id += 1
 
     def set_msg(self, msg, keep=False):
+        self.message_cnt += 1
         self.message = msg
         if not keep:
             start_new_thread(self.clear_msg, (3,))
@@ -195,9 +214,11 @@ class Player:
         return self.message
 
     def clear_msg(self, delay=0):
+        cnt = self.message_cnt
         if delay:
             sleep(delay)
-        self.message = None
+        if cnt == self.message_cnt:
+            self.message = None
 
     def get_state(self):
         repeat_mode_str = ['顺序播放', '单曲循环', '列表循环']
@@ -239,7 +260,8 @@ class Player:
                 return ''
         else:
             return '定时剩余' + \
-                sec_to_time(self.timer_start_time + self.timer_set_time - time())
+                sec_to_time(self.timer_start_time +
+                            self.timer_set_time - time())
 
     def get_timer_prog(self):
         if self.is_timer_end():
@@ -251,3 +273,7 @@ class Player:
         self.repeat_mode += 1
         self.repeat_mode %= 3
         btn.set_img('repeat' + str(self.repeat_mode))
+
+    def error(self, msg, err):
+        self.set_msg(msg)
+        print(err)
