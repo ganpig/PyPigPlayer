@@ -1,117 +1,131 @@
-import _thread
 import configparser
 import os
 import sys
 import time
-import traceback
 
-import easygui
 import pygame
 
 import core
 import ui
 
-title = 'PyPigPlayer v1.0'
+title = 'PyPigPlayer v1.1'
 
 
 def main():
-    try:
-        # 初始化程序
-        pygame.init()
-        pygame.key.set_repeat(500, 100)
-        pygame.display.set_caption(title)
-        screen = pygame.display.set_mode((1000, 600), pygame.RESIZABLE)
-        player = core.Player()
-        volume = core.Volume()
-        timer = core.Timer(player)
-        lrc = core.Lrc()
-        viewer = core.Viewer(player, lrc)
+    # 初始化程序
+    pygame.init()
+    pygame.display.set_caption(title)
+    pygame.key.set_repeat(500, 100)
+    screen = pygame.display.set_mode((1000, 600), pygame.RESIZABLE)
+    player = core.Player()
+    volume = core.Volume()
+    timer = core.Timer(player)
+    lrc = core.Lrc()
+    viewer = core.Viewer(player, lrc)
 
-        # 解析主题
-        def themefile(name):
-            return os.path.join(themepath, name)
+    # 解析配置和主题
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+    start_show_time = config.getfloat('time', 'start')
+    error_show_time = config.getfloat('time', 'error')
+    theme_path = os.path.join('Themes', config.get('theme', 'theme'))
 
-        def getimg(name):
-            return pygame.image.load(themefile(name + '.png'))
+    def themefile(name):
+        return os.path.join(theme_path, name)
 
-        theme = configparser.ConfigParser()
-        themepath = os.path.join('theme', open('theme.txt').readline())
-        theme.read(themefile('theme.ini'))
-        space = theme.getint('global', 'space')
-        button_size = theme.getint('global', 'button_size')
-        line_width = theme.getint('global', 'line_width')
-        line_color = pygame.color.THECOLORS[theme.get('global', 'line_color')]
-        item_images = theme.getint('global', 'item_images')
-        item_height = theme.getint('global', 'item_height')
-        bg_pic = pygame.image.load(themefile('background.png'))
+    def getimg(name):
+        return pygame.image.load(themefile(name + '.png'))
 
-        # 创建文本
-        def createtext(name, *args):
-            return ui.Text(themefile(theme.get(name, 'font')),
-                           pygame.color.THECOLORS[theme.get(name, 'color')], *args)
+    def getfont(name):
+        return os.path.join('Fonts', name)
 
-        dirname_text = createtext('dirname', 20, 30, 'mu')
-        dirpath_text = createtext('dirpath', 15, 15, 'mu')
-        filename_text = createtext('filename', 20, 30, 'mu')
-        filepath_text = createtext('filepath', 15, 15, 'mu')
-        item_text = createtext('item', 15, 25)
-        mid_lrc_text = createtext('lrc1', 15, 25)
-        up_lrc_text = createtext('lrc2', 15, 25, 'md')
-        down_lrc_text = createtext('lrc2', 15, 25, 'mu')
-        progress_text = createtext('progress', 25, 25)
-        timer_text = createtext('timer', 15, 15)
-        volume_text = createtext('volume', 15, 15)
+    theme = configparser.ConfigParser()
+    theme.read(themefile('theme.ini'))
+    space = theme.getint('global', 'space')
+    button_size = theme.getint('button', 'size')
+    viewer_line_width = theme.getint('viewerline', 'width')
+    viewer_line_color = pygame.color.THECOLORS[theme.get(
+        'viewerline', 'color')]
+    line_width = theme.getint('line', 'width')
+    line_color = pygame.color.THECOLORS[theme.get('line', 'color')]
+    item_images = theme.getint('item', 'images')
+    item_height = theme.getint('item', 'height')
+    error_height = theme.getint('error', 'height')
+    error_color = pygame.color.THECOLORS[theme.get('error', 'color')]
+    bg_pic = pygame.image.load(themefile('background.png'))
 
-        # 创建按钮
-        def switchorder(btn):
-            if btn.data == 0:
-                viewer.switch(1)
-                btn.data = 1
-                btn.img = getimg('repeat')
-            elif btn.data == 1:
-                viewer.switch(2)
-                btn.data = 2
-                btn.img = getimg('random')
-            elif btn.data == 2:
-                viewer.switch(0)
-                btn.data = 0
-                btn.img = getimg('order')
+    # 创建文本
+    def createtext(name, *args):
+        return ui.Text(getfont(config.get('font', name)), pygame.color.THECOLORS[theme.get('fontcolor', name)], *args)
 
-        open_btn = ui.Button(getimg('open'), viewer.open, 'ld')
-        last_btn = ui.Button(getimg('last'), viewer.last, 'rd')
-        play_btn = ui.Button(getimg('play'), lambda: player.pause()
-                             if player.playing else player.play(), 'md')
-        next_btn = ui.Button(getimg('next'), viewer.next, 'ld')
-        order_btn = ui.Button(
-            getimg('order'), lambda: switchorder(order_btn), 'rd')
-        buttons = [open_btn, last_btn,
-                   play_btn, next_btn, order_btn]
+    dirname_text = createtext('dirname', 20, 30, 'mu')
+    dirpath_text = createtext('dirpath', 15, 15, 'mu')
+    filename_text = createtext('filename', 20, 30, 'mu')
+    filepath_text = createtext('filepath', 15, 15, 'mu')
+    item_text = createtext('item', 15, 25, 'lm')
+    mid_lrc_text = createtext('lrc1', 15, 25)
+    up_lrc_text = createtext('lrc2', 15, 25, 'md')
+    down_lrc_text = createtext('lrc2', 15, 25, 'mu')
+    progress_text = createtext('progress', 25, 25)
+    timer_text = createtext('timer', 15, 15)
+    volume_text = createtext('volume', 15, 15)
+    error_text = createtext('error', 15, 25)
 
-        # 创建进度条
-        def createprog(name, *args):
-            return ui.Progbar(theme.getint(name, 'width'), theme.get(
-                name, 'color1'), theme.get(name, 'color2'), *args)
+    # 创建按钮
+    def switchorder(btn):
+        if btn.data == 0:
+            viewer.switch(1)
+            btn.data = 1
+            btn.img = getimg('repeat')
+        elif btn.data == 1:
+            viewer.switch(2)
+            btn.data = 2
+            btn.img = getimg('random')
+        elif btn.data == 2:
+            viewer.switch(0)
+            btn.data = 0
+            btn.img = getimg('order')
 
-        main_prog = createprog('progress', player.get_prog,
-                               player.set_prog, player.get_text, progress_text, 'md')
-        volume_prog = createprog(
-            'volume', volume.get_volume, volume.set_volume, volume.get_text, volume_text, 'lu', True)
-        timer_prog = createprog(
-            'timer', timer.get_prog, timer.set_prog, timer.get_text, timer_text, 'ru', True)
-        progress_bars = [main_prog, volume_prog, timer_prog]
+    return_btn = ui.Button(getimg('return'), viewer.father, 'ld')
+    last_btn = ui.Button(getimg('last'), viewer.last, 'rd')
+    play_btn = ui.Button(getimg('play'), lambda: player.pause()
+                         if player.playing else player.play(), 'md')
+    next_btn = ui.Button(getimg('next'), viewer.next, 'ld')
+    order_btn = ui.Button(
+        getimg('order'), lambda: switchorder(order_btn), 'rd')
+    buttons = [return_btn, last_btn,
+               play_btn, next_btn, order_btn]
 
-        # 调试模式
-        debug_mode = False
+    # 创建进度条
+    def createprog(name, *args):
+        return ui.Progbar(theme.getint(name, 'width'), theme.get(
+            name, 'color1'), theme.get(name, 'color2'), *args)
 
-        # 特殊按键
-        ctrl = False
-        shift = False
+    main_prog = createprog('progress', player.get_prog,
+                           player.set_prog, player.get_text, progress_text, 'md')
+    volume_prog = createprog(
+        'volume', volume.get_volume, volume.set_volume, volume.get_text, volume_text, 'lu', True)
+    timer_prog = createprog(
+        'timer', timer.get_prog, timer.set_prog, timer.get_text, timer_text, 'ru', True)
+    progress_bars = [main_prog, volume_prog, timer_prog]
 
-        # 程序时钟
-        clock = pygame.time.Clock()
-        start_time = time.time()
+    # 调试模式
+    debug_mode = False
 
-        while True:
+    # 特殊按键
+    ctrl = False
+    shift = False
+
+    # 错误信息
+    error_msg = ''
+    error_time = -float('inf')
+
+    # 程序时钟
+    clock = pygame.time.Clock()
+    start_time = time.time()
+
+    while True:
+        try:
             # 计算运行时间
             total_time = time.time() - start_time
 
@@ -123,15 +137,16 @@ def main():
 
             # 显示按钮
             def showbutton(btn, xpos):
-                if total_time < 0.5:
+                if total_time < start_show_time:
                     ypos = winh + button_size - \
-                        (button_size + space) * (total_time * 2)**2
+                        (button_size + space) * \
+                        (total_time / start_show_time)**2
                 else:
                     ypos = winh - space
                 return btn.show(screen, (xpos, ypos), width=button_size)
 
             play_btn.img = getimg('pause' if player.playing else 'play')
-            showbutton(open_btn, space)
+            showbutton(return_btn, space)
             draw_bottom = showbutton(play_btn, winw / 2)
             showbutton(last_btn, draw_bottom.left - space)
             showbutton(next_btn, draw_bottom.right + space)
@@ -145,19 +160,27 @@ def main():
 
             # 显示分割线
             mid_line = pygame.draw.line(screen, line_color, (winw / 2, 0),
-                                        (winw / 2, draw_bottom.top * min(total_time * 2, 1)), line_width)
+                                        (winw / 2, draw_bottom.top * min(total_time / start_show_time, 1)), line_width)
 
             # 显示文件夹名称和路径
-            draw_left = dirname_text.show(screen, viewer.path.split(
-                os.path.sep)[-1] if viewer.path else title, (mid_line.left / 2, space), mid_line.left - space * 2)
+            if os.name == 'nt' and viewer.path == '' or os.name == 'posix' and viewer.path == '/':
+                dirname = '根目录'
+            else:
+                dirname = core.filename(viewer.path)
+            draw_left = dirname_text.show(
+                screen, dirname, (mid_line.left / 2, space), mid_line.left - space * 2)
             if viewer.path:
                 draw_left = dirpath_text.show(
                     screen, viewer.path, (mid_line.left / 2, draw_left.bottom), mid_line.left - space * 2)
             draw_left.bottom += space
 
             # 显示文件名称和路径
-            draw_right = filename_text.show(screen, player.file.split(
-                os.path.sep)[-1][:-4] if player.file else '未打开文件', ((mid_line.right + winw) / 2, space), mid_line.left - space * 2)
+            if not player.file:
+                filename = '未打开文件'
+            else:
+                filename = core.filename(player.file)[:-4]
+            draw_right = filename_text.show(screen, filename, ((
+                mid_line.right + winw) / 2, space), mid_line.left - space * 2)
             if player.file:
                 draw_right = filepath_text.show(screen, player.file, ((
                     mid_line.right + winw) / 2, draw_right.bottom), mid_line.left - space * 2)
@@ -167,28 +190,30 @@ def main():
             item_num = (draw_bottom.top - draw_left.bottom +
                         space) // (item_height + space)
             viewer.viewid = max(
-                min(viewer.viewid, len(viewer.items) - item_num), 0)
+                min(viewer.viewid, len(viewer.showitems) - item_num), 0)
             items = []
-            for i in range(min(item_num, len(viewer.items) - viewer.viewid)):
-                class itemplay:
-                    def __init__(self):
-                        self.id = itemid
-
-                    def __call__(self):
-                        viewer.playid(self.id)
-
+            for i in range(min(item_num, len(viewer.showitems) - viewer.viewid)):
                 itemid = viewer.viewid + i
-                item_screen = pygame.transform.scale(pygame.image.load(themefile(
-                    f'item{itemid%item_images}.png')), (mid_line.left - space * 2, item_height))
-                item_text.show(item_screen, viewer.items[itemid], item_screen.get_rect().center,
-                               item_screen.get_width() - space * 2)
+                item = viewer.showitems[itemid]
+                item_screen = pygame.transform.scale(
+                    getimg(f'item{itemid%item_images}'), (mid_line.left - space * 2, item_height))
+                item_icon = item_screen.blit(
+                    ui.scale(getimg(item.icon), height=item_height-space*2), (item_screen.get_width()*0.05, space))
+                item_text.show(item_screen, item.name, (item_icon.right+space, item_icon.centery),
+                               item_screen.get_width() - item_icon.right-space * 2)
                 item_button = ui.Button(
-                    item_screen, itemplay(), 'mu')
+                    item_screen, viewer.showitems[itemid], 'mu')
                 items.append(item_button)
                 item_button.show(
                     screen, (mid_line.left / 2, draw_left.bottom + (item_height + space) * i))
             viewer_area = pygame.Rect(
                 0, draw_left.bottom, mid_line.left, draw_bottom.top - draw_left.bottom)
+            if total_time >= 0.5 and len(viewer.showitems):
+                viewer_prog = ui.aligner(pygame.Rect(
+                    0, 0, viewer_line_width, viewer_area.height*min(item_num/len(viewer.showitems), 1)), 'ru',
+                    (mid_line.left, viewer_area.top+viewer_area.height*viewer.viewid/len(viewer.showitems)))
+                pygame.draw.rect(screen, viewer_line_color, viewer_prog,
+                                 border_radius=viewer_line_width//2)
 
             # 显示音量和定时器
             volume_prog.show(
@@ -233,15 +258,7 @@ def main():
 
                     keys = pygame.key.get_pressed()
                     if ctrl:
-                        if pressed(pygame.K_o):
-                            if debug_mode and shift:
-                                player.open(easygui.fileopenbox())
-                            else:
-                                _thread.start_new_thread(viewer.open, ())
-                        elif pressed(pygame.K_s) and debug_mode:
-                            pygame.image.save(
-                                screen, easygui.filesavebox(default='snapshot.png'))
-                        elif pressed(pygame.K_m):
+                        if pressed(pygame.K_m):
                             switchorder(order_btn)
                         elif pressed(pygame.K_UP):
                             volume.set_volume(1)
@@ -315,6 +332,16 @@ def main():
                 elif event.type == pygame.USEREVENT:
                     viewer.end()
 
+            # 显示错误信息
+            if error_time+error_show_time > total_time:
+                error_width = winw-space*2
+                error_rect = ui.aligner(pygame.Rect(
+                    0, 0, error_width, error_height), 'md', (winw/2, min((total_time-error_time)*100, 50)))
+                pygame.draw.rect(screen, error_color, error_rect,
+                                 border_radius=error_height//2)
+                error_text.show(screen, error_msg,
+                                error_rect.center, error_width-space*2)
+
             # 刷新时钟
             clock.tick()
 
@@ -327,7 +354,7 @@ def main():
 
                 font = pygame.font.SysFont(None, 20)
                 show_msg(time.strftime('%Y-%m-%d %H:%M:%S',
-                         time.localtime()), 'lu', (0, 0))
+                                       time.localtime()), 'lu', (0, 0))
                 show_msg(str(pygame.mouse.get_pos()), 'ru', (winw, 0))
                 show_msg(str(clock.get_fps()) + ' fps', 'ld', (0, winh))
                 show_msg('Debug mode', 'rd', (winw, winh))
@@ -335,12 +362,9 @@ def main():
             # 刷新窗口
             pygame.display.update()
 
-    except Exception:
-        if easygui.ynbox(traceback.format_exc(),
-                         '出错了! - ' + title, ('重启', '退出')):
-            pygame.quit()
-        else:
-            sys.exit()
+        except Exception as e:
+            error_msg = str(e)
+            error_time = total_time
 
 
 if __name__ == '__main__':

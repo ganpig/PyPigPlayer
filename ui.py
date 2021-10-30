@@ -26,6 +26,21 @@ def aligner(rect: pygame.Rect, mode: str, pos: tuple) -> pygame.Rect:
     return rect
 
 
+def scale(img: pygame.Surface, size: tuple = None, width: int = None, height: int = None):
+    """
+    缩放 Pygame 表面。
+    size、width、height参数同时只能使用一个。
+    """
+    if size:
+        return pygame.transform.scale(img, size)
+    elif width:
+        return pygame.transform.scale(img, (width, width * img.get_height() / img.get_width()))
+    elif height:
+        return pygame.transform.scale(img, (height * img.get_width() / img.get_height(), height))
+    else:
+        return img
+
+
 class Text:
     """
     可设置字体、字号、对齐方式的文本类。
@@ -53,7 +68,7 @@ class Text:
         if width and render.get_width() > width:
             render = pygame.font.Font(self.font, max(int(
                 self.maxsize * width / render.get_width()), self.minsize)).render(text, True, self.color)
-            # 若缩小字号后仍超过，直接缩放
+            # 若缩小字号后仍超过，强行缩放
             if render.get_width() > width:
                 render = pygame.transform.scale(
                     render, (width, int(render.get_height())))
@@ -77,24 +92,12 @@ class Button:
         self.align = align
         self.data = data
 
-    def show(self, screen: pygame.Surface, pos: tuple, size: tuple = None,
-             width: int = None, height: int = None) -> pygame.Rect:
+    def show(self, screen: pygame.Surface, pos: tuple, *args, **kwargs) -> pygame.Rect:
         """
         在表面指定位置显示按钮。
         size、width、height参数同时只能使用一个。
         """
-        # 缩放按钮
-        if size:
-            img = pygame.transform.scale(self.img, size)
-        elif width:
-            img = pygame.transform.scale(
-                self.img, (width, width * self.img.get_height() / self.img.get_width()))
-        elif height:
-            img = pygame.transform.scale(
-                self.img, (height * self.img.get_width() / self.img.get_height(), height))
-        else:
-            img = self.img
-
+        img = scale(self.img, *args, **kwargs)
         self.rect = aligner(img.get_rect(), self.align, pos)
         screen.blit(img, self.rect)
         return pygame.Rect(self.rect)

@@ -4,8 +4,8 @@ import re
 import time
 
 import chardet
-import easygui
 import mutagen.mp3
+import psutil
 import pygame
 import pypinyin
 
@@ -18,6 +18,24 @@ def autodecode(data: bytes) -> str:
     """
     encoding = chardet.detect(data)['encoding']
     return data.decode(encoding, errors='ignore') if encoding else ''
+
+
+def fatherpath(path: str) -> str:
+    """
+    获取路径的上一级目录。
+    """
+    return os.path.split(path)[0]
+
+
+def filename(path: str) -> str:
+    """
+    获取文件名。
+    """
+    if os.name == 'nt':
+        tmp = os.path.split(path)
+        return tmp[0][:-1] if tmp[0] == path else tmp[1]
+    else:
+        return os.path.split(path)[1]
 
 
 class Player:
@@ -85,7 +103,7 @@ class Player:
             self.playing = True
 
         except Exception as e:
-            easygui.msgbox(f'打开文件 {file} 失败:\n{e}', title)
+            raise Exception(f'打开文件 {file} 失败:' + str(e))
 
     def play(self) -> None:
         """
@@ -267,6 +285,25 @@ class Lrc:
         return self.lrc[self.mark[id]] if 0 <= id < len(self.mark) else ''
 
 
+class Item:
+    """
+    文件浏览器中的项。
+    """
+
+    def __init__(self, name: str, icon: str, onclick, param, onclick2=None, param2=None) -> None:
+        self.name = name
+        self.icon = icon
+        self.onclick = onclick
+        self.param = param
+        self.onclick2 = onclick2
+        self.param2 = param2
+
+    def __call__(self):
+        self.onclick(self.param)
+        if self.onclick2:
+            self.onclick2(self.param2)
+
+
 class Viewer:
     """
     文件浏览器。
@@ -276,24 +313,63 @@ class Viewer:
         self.player = player
         self.lrc = lrc
         self.mode = 0
-        self.path = None
-        self.items = []
+        self.playlist = []
+        self.showitems = []
         self.id = 0
         self.viewid = 0
         self.lastpath = os.path.expanduser('~/desktop')
+        if os.name == 'nt':
+            self.path = ''
+        else:
+            self.path = '/'
+        self.open(self.path)
 
-    def open(self) -> None:
+    def open(self, path: str) -> None:
         """
-        使用系统对话框让用户打开文件夹。
+        打开文件夹。
         """
-        path = easygui.diropenbox('打开文件夹', title, self.lastpath)
-        if path:
+        def sortby(item):
+            ret = []
+            for i, c in enumerate(item.name):
+                pinyin = pypinyin.lazy_pinyin(c)
+                if pinyin[0] != c:
+                    ret.append('\uffff'+pinyin[0])
+                else:
+                    ret.append(c.lower())
+            return ret
+        try:
+            if path == '':
+                self.showitems = sorted([Item(i.device, 'disk', self.open, i.device)
+                                        for i in psutil.disk_partitions()], key=sortby)
+            else:
+                self.lastpath = fatherpath(path)
+                dirs = []
+                files = []
+                for i in os.listdir(path):
+                    name = os.path.join(path, i)
+                    if os.path.isdir(name):
+                        dirs.append(Item(i, 'folder', self.open, name))
+                    elif i.endswith('.mp3'):
+                        files.append(
+                            Item(i[:-4], 'music', self.play, name, self.setid))
+                dirs.sort(key=sortby)
+                files.sort(key=sortby)
+                for i, item in enumerate(files):
+                    item.param2 = i
+                self.showitems = dirs+files
             self.path = path
-            self.lastpath = os.path.sep.join(path.split(os.path.sep)[:-1])
-            self.items = sorted([i[:-4] for i in os.listdir(path)if i.endswith(
-                '.mp3') and os.path.isfile(os.path.join(path, i))], key=lambda x: pypinyin.lazy_pinyin(x))
-            self.id = 0
             self.viewid = 0
+        except Exception as e:
+            raise Exception('无法打开文件夹:'+str(e))
+
+    def father(self) -> None:
+        """
+        返回上一级目录。
+        """
+        if os.name == 'nt' and self.path == fatherpath(self.path):
+            self.open('')
+        else:
+            self.open(fatherpath(self.path))
 
     def switch(self, mode: int) -> None:
         """
@@ -302,37 +378,40 @@ class Viewer:
         self.mode = mode
 
     def play(self, name: str) -> None:
-        self.player.open(os.path.join(self.path, name + '.mp3'))
-        if os.path.isfile(os.path.join(self.path, name + '.lrc')):
-            self.lrc.open(os.path.join(self.path, name + '.lrc'))
+        self.playlist = [
+            i.param for i in self.showitems if i.onclick == self.play]
+        self.player.open(os.path.join(self.path, name))
+        if os.path.isfile(os.path.join(self.path, name[:-4] + '.lrc')):
+            self.lrc.open(os.path.join(self.path, name[:-4] + '.lrc'))
+        else:
+            self.lrc.__init__()
 
-    def playid(self, id: int) -> None:
+    def setid(self, id: int) -> None:
         self.id = id
-        self.play(self.items[id])
 
     def next(self) -> None:
-        if self.items:
+        if self.showitems:
             if self.mode == 2:
                 next = self.id
                 while next == self.id:
-                    next = random.randrange(len(self.items))
+                    next = random.randrange(len(self.playlist))
                 self.id = next
-                self.play(self.items[self.id])
+                self.play(self.playlist[self.id])
             else:
-                self.id = (self.id + 1) % len(self.items)
-                self.play(self.items[self.id])
+                self.id = (self.id + 1) % len(self.playlist)
+                self.play(self.playlist[self.id])
 
     def last(self) -> None:
-        if self.items:
+        if self.showitems:
             if self.mode == 2:
                 last = self.id
                 while last == self.id:
-                    last = random.randrange(len(self.items))
+                    last = random.randrange(len(self.playlist))
                 self.id = last
-                self.play(self.items[self.id])
+                self.play(self.playlist[self.id])
             else:
-                self.id = (self.id - 1) % len(self.items)
-                self.play(self.items[self.id])
+                self.id = (self.id - 1) % len(self.playlist)
+                self.play(self.playlist[self.id])
 
     def end(self) -> None:
         """
