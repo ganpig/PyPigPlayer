@@ -8,10 +8,6 @@
 
 - 若使用 `portable` 版本，解压后运行 `PyPigPlayer.exe` 即可启动程序。
 
-###  Linux
-
-- 解压后进入程序所在目录，运行 `./PyPigPlayer` 即可启动程序。
-
 ### 其它操作系统
 
 - 下载源代码并使用 `pip` 安装需要的第三方 Python 库，使用 Python 运行 `main.py` 即可启动程序。
