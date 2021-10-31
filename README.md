@@ -10,7 +10,7 @@
 
 ### 其它操作系统
 
-- 下载源代码并使用 `pip` 安装需要的第三方 Python 库，使用 Python 运行 `main.py` 即可启动程序。
+- 下载`without-python`版本，使用 `pip` 安装需要的第三方 Python 库，在命令行中运行 `python3 PyPigPlayer.pyz` 即可启动程序。
 
 ## 二、基本操作
 
