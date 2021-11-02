@@ -3,7 +3,7 @@ import os
 import sys
 import time
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = ''
-title = 'PyPigPlayer v1.1.3'
+title = 'PyPigPlayer v1.1.4'
 
 
 def main():

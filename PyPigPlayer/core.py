@@ -354,33 +354,36 @@ class Viewer:
                 self.showitems = sorted([Item(i.device, 'disk', self.open, i.device)
                                         for i in psutil.disk_partitions()], key=sortby)
             else:
-                dirs = []
-                files = []
-
-                def add_item(path):
-                    if os.path.isdir(path):
-                        dirs.append(
-                            Item(filename(path), 'folder', self.open, path))
-                    elif path.endswith('.mp3'):
-                        files.append(
-                            Item(filename(path)[:-4], 'music', self.play, path, self.setid))
+                all = set((os.path.join(path, i) for i in os.listdir(path)))
 
                 if os.name == 'nt':
                     for i in os.popen(f'attrib /d "{path}"\\*').read().splitlines():
                         properties = i[:21]
                         name = i[21:]
-                        if 'S' not in properties:
-                            add_item(name)
-                else:
+                        if 'S' in properties and name in all:
+                            all.remove(name)
+                elif os.name == 'posix':
                     for i in os.listdir(path):
-                        if not i.startswith('.'):
-                            add_item(os.path.join(path, i))
+                        if i.startswith('.') and name in all:
+                            all.remove(os.path.join(path, i))
+
+                dirs = []
+                files = []
+
+                for i in all:
+                    if os.path.isdir(i):
+                        dirs.append(
+                            Item(filename(i), 'folder', self.open, i))
+                    elif i.endswith('.mp3'):
+                        files.append(
+                            Item(filename(i)[:-4], 'music', self.play, i, self.setid))
 
                 dirs.sort(key=sortby)
                 files.sort(key=sortby)
                 for i, item in enumerate(files):
                     item.param2 = i
                 self.showitems = dirs+files
+
             self.path = path
             self.viewid = 0
         except Exception as e:
