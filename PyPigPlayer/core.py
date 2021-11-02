@@ -418,26 +418,11 @@ class Viewer:
         """
         self.id = id
 
-    def next(self) -> None:
-        """
-        下一首。
-        """
-        if self.showitems:
-            if self.mode == 2:
-                next = self.id
-                while next == self.id:
-                    next = random.randrange(len(self.playlist))
-                self.id = next
-                self.play(self.playlist[self.id])
-            else:
-                self.id = (self.id + 1) % len(self.playlist)
-                self.play(self.playlist[self.id])
-
     def last(self) -> None:
         """
         上一首。
         """
-        if self.showitems:
+        if self.playlist:
             if self.mode == 2:
                 last = self.id
                 while last == self.id:
@@ -446,6 +431,21 @@ class Viewer:
                 self.play(self.playlist[self.id])
             else:
                 self.id = (self.id - 1) % len(self.playlist)
+                self.play(self.playlist[self.id])
+
+    def next(self) -> None:
+        """
+        下一首。
+        """
+        if self.playlist:
+            if self.mode == 2:
+                next = self.id
+                while next == self.id:
+                    next = random.randrange(len(self.playlist))
+                self.id = next
+                self.play(self.playlist[self.id])
+            else:
+                self.id = (self.id + 1) % len(self.playlist)
                 self.play(self.playlist[self.id])
 
     def end(self) -> None:
