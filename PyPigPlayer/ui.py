@@ -203,3 +203,64 @@ class Progbar:
         if self.moving:
             self.setvalue(
                 max(0, min(1, (pos[0] - self.rect.left) / self.rect.w)))
+
+
+class Area:
+    """
+    滚动区域。
+    """
+
+    rect: pygame.Rect = pygame.Rect(0, 0, 0, 0)
+    surface: pygame.Surface = pygame.Surface((0, 0))
+    show_pos: float = 0
+    mouse_pos: tuple = (0, 0)
+    moving: bool = False
+
+    def clear(self, size: tuple) -> None:
+        """
+        清空滚动区域。
+        """
+        self.surface = pygame.Surface(size).convert_alpha()
+        self.surface.fill((0, 0, 0, 0))
+
+    def blit(self, surface: pygame.Surface, pos: tuple) -> None:
+        """
+        绘制内容到滚动区域。
+        """
+        self.surface.blit(surface.convert_alpha(), pos)
+
+    def show(self, screen: pygame.Surface, pos: tuple, height: float) -> None:
+        """
+        显示滚动区域。
+        """
+        self.show_pos = max(
+            min(self.show_pos, self.surface.get_height()-height), 0)
+        self.rect = pygame.Rect(*pos, self.surface.get_width(), height)
+        screen.blit(self.surface, pos, (0, self.show_pos,
+                    self.surface.get_width(), height))
+
+    def click(self, pos: tuple) -> None:
+        """
+        处理鼠标点击事件。
+        """
+        if self.rect.collidepoint(pos):
+            self.mouse_pos = pos
+            self.moving = True
+
+    def mouse_up(self, pos: tuple, test_list: list) -> None:
+        """
+        处理鼠标松开事件。
+        """
+        if self.mouse_pos == pos:
+            area_pos = (pos[0]-self.rect.left, pos[1] -
+                        self.rect.top+self.show_pos)
+            for i in test_list:
+                i.click(area_pos)
+        self.moving = False
+
+    def drag(self, rel: tuple) -> None:
+        """
+        处理鼠标移动事件。
+        """
+        if self.moving:
+            self.show_pos -= rel[1]

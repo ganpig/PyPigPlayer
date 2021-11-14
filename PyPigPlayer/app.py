@@ -2,8 +2,9 @@ import configparser
 import os
 import sys
 import time
+import traceback
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = ''
-title = 'PyPigPlayer v1.1.4'
+title = 'PyPigPlayer v1.2'
 
 
 def main():
@@ -109,6 +110,10 @@ def main():
         'timer', timer.get_prog, timer.set_prog, timer.get_text, timer_text, 'ru', True)
     progress_bars = [main_prog, volume_prog, timer_prog]
 
+    # 创建滚动区域
+    viewer_area = ui.Area()
+    showing_items = []
+
     # 调试模式
     debug_mode = False
 
@@ -187,31 +192,31 @@ def main():
             draw_right.bottom += space
 
             # 显示文件浏览器
-            item_num = (draw_bottom.top - draw_left.bottom +
-                        space) // (item_height + space)
-            viewer.viewid = max(
-                min(viewer.viewid, len(viewer.showitems) - item_num), 0)
-            items = []
-            for i in range(min(item_num, len(viewer.showitems) - viewer.viewid)):
-                itemid = viewer.viewid + i
-                item = viewer.showitems[itemid]
-                item_screen = pygame.transform.scale(
-                    getimg(f'item{itemid%item_images}'), (mid_line.left - space * 2, item_height))
-                item_icon = item_screen.blit(
-                    ui.scale(getimg(item.icon), height=item_height-space*2), (item_screen.get_width()*0.05, space))
-                item_text.show(item_screen, item.name, (item_icon.right+space, item_icon.centery),
-                               item_screen.get_width() - item_icon.right-space * 2)
-                item_button = ui.Button(
-                    item_screen, viewer.showitems[itemid], 'mu')
-                items.append(item_button)
-                item_button.show(
-                    screen, (mid_line.left / 2, draw_left.bottom + (item_height + space) * i))
-            viewer_area = pygame.Rect(
+            if mid_line.left-space*2 != viewer_area.rect.width or viewer.showitems != showing_items:
+                viewer_area.clear(
+                    (mid_line.left-space*2, len(viewer.showitems)*(item_height+space)))
+                items = []
+                for itemid, item in enumerate(viewer.showitems):
+                    item_screen = pygame.transform.scale(
+                        getimg(f'item{itemid%item_images}'), (mid_line.left - space * 2, item_height))
+                    item_icon = item_screen.blit(
+                        ui.scale(getimg(item.icon), height=item_height-space*2), (item_screen.get_width()*0.05, space))
+                    item_text.show(item_screen, item.name, (item_icon.right+space, item_icon.centery),
+                                   item_screen.get_width() - item_icon.right-space * 2)
+                    item_button = ui.Button(
+                        item_screen, viewer.showitems[itemid], 'lu')
+                    items.append(item_button)
+                    item_button.show(
+                        viewer_area, (0, (item_height + space) * itemid))
+                showing_items = viewer.showitems
+            viewer_area.show(screen, (space, draw_left.bottom),
+                             draw_bottom.top - draw_left.bottom)
+            viewer_rect = pygame.Rect(
                 0, draw_left.bottom, mid_line.left, draw_bottom.top - draw_left.bottom)
             if total_time >= 0.5 and len(viewer.showitems):
                 viewer_prog = ui.aligner(pygame.Rect(
-                    0, 0, viewer_line_width, viewer_area.height*min(item_num/len(viewer.showitems), 1)), 'ru',
-                    (mid_line.left, viewer_area.top+viewer_area.height*viewer.viewid/len(viewer.showitems)))
+                    0, 0, viewer_line_width, viewer_rect.height*min(viewer_rect.height/viewer_area.surface.get_height(), 1)), 'ru',
+                    (mid_line.left, viewer_rect.top+viewer_rect.height*viewer_area.show_pos/viewer_area.surface.get_height()))
                 pygame.draw.rect(screen, viewer_line_color, viewer_prog,
                                  border_radius=viewer_line_width//2)
 
@@ -304,30 +309,34 @@ def main():
 
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     if event.button == 1:
-                        for element in buttons + progress_bars + items:
+                        for element in buttons + progress_bars:
                             element.click(event.pos)
-                    elif event.button == 4:
-                        if lrc.lrc and lrc_area.collidepoint(
-                                event.pos) and cur_lrc_id >= 0:
-                            player.set_pos(
-                                lrc.mark[cur_lrc_id - 1] if cur_lrc_id else 0)
-                        if viewer_area.collidepoint(event.pos):
-                            viewer.viewid -= 1
-                    elif event.button == 5:
-                        if lrc.lrc and lrc_area.collidepoint(
-                                event.pos) and cur_lrc_id + 1 < len(lrc.mark):
-                            player.set_pos(lrc.mark[cur_lrc_id + 1])
-                        if viewer_area.collidepoint(event.pos):
-                            viewer.viewid += 1
+                        viewer_area.click(event.pos)
+                    elif event.button >= 4:
+                        if event.button % 2 == 0:
+                            if lrc.lrc and lrc_area.collidepoint(
+                                    event.pos) and cur_lrc_id >= 0:
+                                player.set_pos(
+                                    lrc.mark[cur_lrc_id - 1] if cur_lrc_id else 0)
+                            if viewer_rect.collidepoint(event.pos):
+                                viewer_area.show_pos -= item_height+space
+                        else:
+                            if lrc.lrc and lrc_area.collidepoint(
+                                    event.pos) and cur_lrc_id + 1 < len(lrc.mark):
+                                player.set_pos(lrc.mark[cur_lrc_id + 1])
+                            if viewer_rect.collidepoint(event.pos):
+                                viewer_area.show_pos += item_height+space
 
                 elif event.type == pygame.MOUSEBUTTONUP:
                     if event.button == 1:
                         for prog in progress_bars:
                             prog.mouse_up()
+                        viewer_area.mouse_up(event.pos, items)
 
                 elif event.type == pygame.MOUSEMOTION:
                     for prog in progress_bars:
                         prog.drag(event.pos)
+                        viewer_area.drag(event.rel)
 
                 elif event.type == pygame.USEREVENT:
                     viewer.end()
@@ -359,12 +368,13 @@ def main():
                 show_msg(str(clock.get_fps()) + ' fps', 'ld', (0, winh))
                 show_msg('Debug mode', 'rd', (winw, winh))
 
-            # 刷新窗口
-            pygame.display.update()
-
         except Exception as e:
             error_msg = str(e)
             error_time = total_time
+            print(traceback.format_exc())
+
+        # 刷新窗口
+        pygame.display.update()
 
 
 if __name__ == '__main__':

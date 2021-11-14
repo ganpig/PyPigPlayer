@@ -324,7 +324,6 @@ class Viewer:
     playlist: list = []
     showitems: list = []
     id: int = 0
-    viewid: int = 0
     path: str = ''
 
     def __init__(self, player: Player, lrc: Lrc) -> None:
@@ -364,8 +363,9 @@ class Viewer:
                             all.remove(name)
                 elif os.name == 'posix':
                     for i in os.listdir(path):
+                        name = os.path.join(path, i)
                         if i.startswith('.') and name in all:
-                            all.remove(os.path.join(path, i))
+                            all.remove(name)
 
                 dirs = []
                 files = []
@@ -385,7 +385,6 @@ class Viewer:
                 self.showitems = dirs+files
 
             self.path = path
-            self.viewid = 0
         except Exception as e:
             raise Exception('无法打开文件夹:'+str(e))
 
