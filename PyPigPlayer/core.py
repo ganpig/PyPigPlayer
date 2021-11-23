@@ -48,6 +48,7 @@ class Player:
     playing: bool = False
     delay: float = 0.02
     precision: float = 0.1
+    fadeout: float = 0.5
 
     def open(self, file: str) -> None:
         """
@@ -113,8 +114,13 @@ class Player:
         暂停。
         """
         if self.file:
-            pygame.mixer.music.pause()
             self.playing = False
+            pos_bak = self.get_pos()
+            pygame.mixer.music.fadeout(int(self.fadeout*1000))
+            time.sleep(self.fadeout)
+            pygame.mixer.music.play()
+            pygame.mixer.music.pause()
+            self.set_pos(pos_bak+self.fadeout)
 
     def replay(self) -> None:
         """
@@ -286,6 +292,12 @@ class Lrc:
         """
         return self.lrc[self.mark[id]] if 0 <= id < len(self.mark) else ''
 
+    def get_mark(self, id: int) -> float:
+        """
+        获取指定编号的时间，
+        """
+        return self.mark[id] if 0 <= id < len(self.mark) else float('inf')
+
 
 class Item:
     """
@@ -324,6 +336,7 @@ class Viewer:
     playlist: list = []
     showitems: list = []
     id: int = 0
+    viewid: int = 0
     path: str = ''
 
     def __init__(self, player: Player, lrc: Lrc) -> None:
@@ -363,9 +376,8 @@ class Viewer:
                             all.remove(name)
                 elif os.name == 'posix':
                     for i in os.listdir(path):
-                        name = os.path.join(path, i)
                         if i.startswith('.') and name in all:
-                            all.remove(name)
+                            all.remove(os.path.join(path, i))
 
                 dirs = []
                 files = []
@@ -385,6 +397,7 @@ class Viewer:
                 self.showitems = dirs+files
 
             self.path = path
+            self.viewid = 0
         except Exception as e:
             raise Exception('无法打开文件夹:'+str(e))
 
@@ -454,7 +467,8 @@ class Viewer:
         """
         接受到 pygame.USEREVENT 事件时调用此方法。
         """
-        if self.mode == 1:
-            self.player.replay()
-        else:
-            self.next()
+        if self.player.playing:
+            if self.mode == 1:
+                self.player.replay()
+            else:
+                self.next()
