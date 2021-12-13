@@ -1,4 +1,3 @@
-import _thread
 import hashlib
 import os
 import random
@@ -8,12 +7,12 @@ import time
 import traceback
 
 import chardet
-import easygui
 import mutagen.mp3
 import psutil
 import pygame
 import pypinyin
 
+import ui
 import web
 from init import *
 
@@ -45,18 +44,19 @@ def convert_mp3(file: str, target: str) -> None:
     """
     将音乐文件转换为 MP3 格式。
     """
+    info.set('正在转换文件格式……')
     try:
-        info.set('正在转换文件格式……')
         if not os.path.isdir(temp):
             os.makedirs(temp)
-        if os.system(f'{ffmpeg} -v 0 -y -i \"{file}\" -f mp3 \"{target}\"') or not os.path.isfile(target):
+        if os.system(f'{ffmpeg} -v 0 -y -i \"{file}\" -f mp3 \"{target}\"'):
             raise Exception()
-        info.clear()
 
     except:
-        info.clear()
         traceback.print_exc()
         err.set('转换文件格式失败!')
+
+    finally:
+        info.clear()
 
 
 def mp3path(file: str) -> str:
@@ -73,23 +73,39 @@ def mp3path(file: str) -> str:
         return target
 
 
-def urlpath(url: str, type: str = '') -> str:
+def musicpath(music: web.Music) -> str:
     """
-    获取 URL 在本地缓存路径。
+    获取音乐缓存路径。
     """
-    try:
-        info.set('正在从网络获取数据……')
-        if not os.path.isdir(temp):
-            os.makedirs(temp)
-        target = os.path.join(temp, hashlib.md5(
-            url.encode('utf-8')).hexdigest()+type)
-        if not os.path.isfile(target):
-            open(target, 'wb').write(web.get(url))
-        info.clear()
+    hash = hashlib.md5(music.url.encode('utf-8')).hexdigest()
+    dl_path = os.path.join(
+        temp, hash+('.mp3' if music._ == 'netease' else '.m4a'))
+    target = os.path.join(temp, hash+'.mp3')
+
+    if os.path.isfile(target):
         return target
-    except Exception as e:
-        info.clear()
-        raise e
+
+    elif os.path.isfile(dl_path):
+        convert_mp3(dl_path, target)
+
+    else:
+        info.set('正在下载数据……')
+        try:
+            if not os.path.isdir(temp):
+                os.makedirs(temp)
+            open(dl_path, 'wb').write(web.get(web.link(music)))
+
+        except Exception as e:
+            traceback.print_exc()
+            err.set('下载数据失败:'+str(e))
+            raise Exception()
+
+        finally:
+            info.clear()
+
+        if music._ == 'qqmusic':
+            convert_mp3(dl_path, target)
+        return target
 
 
 class Player:
@@ -111,8 +127,8 @@ class Player:
         """
         打开文件。
         """
+        info.set('正在打开文件……')
         try:
-            info.set('正在加载文件……')
             self.ready = False
             pygame.mixer.music.load(file)
             self.file = file
@@ -158,12 +174,12 @@ class Player:
             self.playing = True
             self.ready = True
 
-            info.clear()
-
         except Exception as e:
-            info.clear()
             traceback.print_exc()
-            err.set(f'打开文件 {file} 失败:' + str(e))
+            err.set(f'打开文件失败:' + str(e))
+
+        finally:
+            info.clear()
 
     def close(self) -> None:
         """
@@ -171,6 +187,8 @@ class Player:
         """
         pygame.mixer.music.stop()
         self.playing = False
+        self.ready = False
+        self.length = 0
 
     def play(self) -> None:
         """
@@ -206,9 +224,7 @@ class Player:
         """
         获取当前播放位置 (单位:秒)。
         """
-        while not self.ready:
-            pass
-        return pygame.mixer.music.get_pos() / 1000 + self.offset
+        return pygame.mixer.music.get_pos() / 1000 + self.offset if self.ready else 0
 
     def set_pos(self, pos: float) -> None:
         """
@@ -223,9 +239,7 @@ class Player:
         """
         获取当前播放进度。
         """
-        while not self.ready:
-            pass
-        return self.get_pos() / self.length
+        return self.get_pos() / self.length if self.length else 0
 
     def set_prog(self, prog: float) -> float:
         """
@@ -237,8 +251,6 @@ class Player:
         """
         获取进度条文字。
         """
-        while not self.ready:
-            pass
         return '/'.join(map((lambda s: '{:0>2d}:{:0>2d}'.format(
             *divmod(int(s), 60))), (self.get_pos(), self.length)))
 
@@ -400,7 +412,7 @@ class Item:
     def __call__(self) -> None:
         for onclick, param, newthread in self.onclicks:
             if newthread:
-                _thread.start_new_thread(onclick, (param,))
+                start_thread(onclick, param)
             else:
                 onclick(param)
 
@@ -414,7 +426,7 @@ class Viewer:
     lrc: Lrc = None
     urltemp: str = ''
     lrctemp: str = ''
-    mode: int = 0
+    repmode: int = 0
     playlist: list = []
     showitems: list = []
     id: int = 0
@@ -422,8 +434,11 @@ class Viewer:
     path: str = ''
     playing: str = '未打开文件'
     playing2: str = ''
-    search_mode: bool = False
-    search_key: str = ''
+    showmode: int = 0
+    page: str = ''
+    page2: str = ''
+    downloadable: bool = False
+    popup: ui.Popup = ui.Popup()
 
     def __init__(self, player: Player, lrc: Lrc) -> None:
         self.player = player
@@ -445,10 +460,12 @@ class Viewer:
             return ret
 
         try:
-            info.set('正在加载文件夹……')
-            if path == '':
-                self.showitems = sorted([Item(i.device, 'disk', (self.open, i.device, False))
-                                        for i in psutil.disk_partitions()], key=sortby)
+            if not path:
+                tmp = sorted([Item(i.device, 'disk', (self.open, i.device, False))
+                              for i in psutil.disk_partitions()], key=sortby)
+                self.page = '磁盘列表'
+                self.page2 = ''
+
             else:
                 all = set((os.path.join(path, i) for i in os.listdir(path)))
                 for i in os.popen(f'attrib /d "{path}"\\*').read().splitlines():
@@ -471,48 +488,93 @@ class Viewer:
                 files.sort(key=sortby)
                 for i, item in enumerate(files):
                     item.onclicks[1][1] = i
-                self.showitems = dirs+files
+                tmp = dirs+files
+                self.page = filename(path)
+                self.page2 = path
             self.path = path
             self.viewid = 0
-            info.clear()
+            self.showitems = tmp
 
         except Exception as e:
-            info.clear()
             traceback.print_exc()
             err.set('无法打开文件夹:'+str(e))
 
+    def load_list(self, data: list) -> None:
+        """
+        加载音乐列表。
+        """
+        i = 0
+        tmp = []
+        for music in data:
+            if music.vip:
+                tmp.append(Item('[VIP]'+music.singer +
+                                ' - '+music.name, music._, (os.system, 'start '+music.url, False)))
+            else:
+                tmp.append(Item(music.singer+' - '+music.name, music._, (self.play_online, music, True),
+                                (self.setid, i, False)))
+                i += 1
+        self.viewid = 0
+        self.showitems = tmp
+        msg.set(f'获取到{i}首音乐!')
+
     def search_online(self) -> None:
         """
-        加载搜索结果。
+        在线搜索音乐。
+        """
+        key = self.popup.input('请输入搜索关键词', '在线搜索音乐')
+        if key:
+            data = web.search(key)
+            if data:
+                self.page = '搜索:'+key
+                self.page2 = ''
+                self.showmode = 1
+                self.load_list(data)
+            else:
+                err.set('未搜索到音乐!')
+
+    def tops(self) -> None:
+        """
+        选择榜单。
         """
         tmp = []
-        data = web.search(self.search_key)
+        for topid in toplists:
+            tmp.append(Item(toplists[topid], 'folder',
+                       (self.toplist, topid, True)))
+        self.page = '榜单列表'
+        self.page2 = ''
+        self.viewid = 0
+        self.showitems = tmp
+        self.showmode = 2
+
+    def toplist(self, topid: int) -> None:
+        """
+        加载榜单。
+        """
+        data = web.toplist(topid)
         if data:
-            i = 0
-            for music in data:
-                if music.vip:
-                    tmp.append(Item('[VIP]'+music.singer +
-                                    ' - '+music.name, music._, (os.system, 'start '+music.url, False)))
-                else:
-                    tmp.append(Item(music.singer+' - '+music.name, music._, (self.play_online, music, True),
-                                    (self.setid, i, False)))
-                    i += 1
-            self.showitems = tmp
-            self.search_mode = True
-            self.viewid = 0
+            self.page = toplists[topid]
+            self.page2 = f'https://y.qq.com/n/ryqq/toplist/{topid}'
+            self.showmode = 3
+            self.load_list(data)
 
     def save(self) -> None:
         """
-        保存当前歌曲。
+        保存音乐。
         """
-        savepath = easygui.filesavebox('选择保存路径', title, os.path.expanduser(
-            '~\\desktop\\')+self.playing+'.mp3', '*.mp3')
+        mp3 = self.urltemp
+        lrc = self.lrctemp
+        if lrc:
+            savepath = self.popup.file(
+                '保存音乐及歌词', self.playing+'.mp3', 'MP3 音乐文件 & LRC 歌词文件', '.mp3')
+        else:
+            savepath = self.popup.file(
+                '保存音乐', self.playing+'.mp3', 'MP3 音乐文件', '.mp3')
         if savepath:
             try:
-                shutil.copy(self.urltemp, savepath)
+                shutil.copy(mp3, savepath)
                 if self.lrctemp:
-                    with open(savepath[:-4]+'.lrc', 'w') as f:
-                        f.write(self.lrctemp)
+                    with open(savepath[:-4]+'.lrc', 'wb') as f:
+                        f.write(self.lrctemp.encode(errors='ignore'))
                 msg.set('保存音乐成功!')
             except Exception as e:
                 err.set('保存音乐失败:'+str(e))
@@ -521,12 +583,20 @@ class Viewer:
         """
         返回上一级目录。
         """
-        if self.search_mode:
-            self.search_mode = False
+        if self.showmode % 2:
             self.lrc.clear()
             self.player.close()
             self.playing = '未打开文件'
             self.playing2 = ''
+            self.playlist = []
+            self.downloadable = False
+            if self.showmode == 1:
+                self.showmode = 0
+                self.open(self.path)
+            else:
+                self.tops()
+        elif self.showmode:
+            self.showmode = 0
             self.open(self.path)
         elif self.path == fatherpath(self.path):
             self.open('')
@@ -537,7 +607,7 @@ class Viewer:
         """
         切换循环模式 (0:顺序播放, 1:单曲循环, 2:随机播放)。
         """
-        self.mode = mode
+        self.repmode = mode
 
     def play(self, name: str) -> None:
         """
@@ -561,14 +631,15 @@ class Viewer:
         try:
             self.playlist = [
                 i.onclicks[0][1] for i in self.showitems if i.onclicks[0][0] == self.play_online]
-            self.urltemp = mp3path(
-                urlpath(web.link(music), '.mp3' if music._ == 'netease' else '.m4a'))
+            self.urltemp = musicpath(music)
             self.lrctemp = web.lrc(music)
             self.player.open(self.urltemp)
             self.lrc.clear()
             self.lrc.open(self.lrctemp)
+            self.downloadable = True
             self.playing = music.singer+' - '+music.name
             self.playing2 = music.url
+
         except Exception as e:
             traceback.print_exc()
             err.set('在线播放音乐出错:'+str(e))
@@ -584,9 +655,9 @@ class Viewer:
         上一首。
         """
         if self.playlist:
-            play = self.play if not self.search_mode else lambda x: _thread.start_new_thread(
-                self.play_online, (x,))
-            if self.mode == 2:
+            play = self.play if not self.showmode else lambda x: start_thread(
+                self.play_online, x)
+            if self.repmode == 2:
                 last = self.id
                 while last == self.id:
                     last = random.randrange(len(self.playlist))
@@ -601,9 +672,9 @@ class Viewer:
         下一首。
         """
         if self.playlist:
-            play = self.play if not self.search_mode else lambda x: _thread.start_new_thread(
-                self.play_online, (x,))
-            if self.mode == 2:
+            play = self.play if not self.showmode else lambda x: start_thread(
+                self.play_online, x)
+            if self.repmode == 2:
                 next = self.id
                 while next == self.id:
                     next = random.randrange(len(self.playlist))
@@ -618,7 +689,7 @@ class Viewer:
         接受到 pygame.USEREVENT 事件时调用此方法。
         """
         if self.player.playing:
-            if self.mode == 1:
+            if self.repmode == 1:
                 self.player.replay()
             else:
                 self.next()

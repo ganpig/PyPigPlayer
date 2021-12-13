@@ -1,11 +1,9 @@
-import _thread
 import configparser
 import os
 import sys
 import time
 import traceback
 
-import easygui
 import pygame
 
 import core
@@ -17,7 +15,6 @@ def main():
     # 初始化窗口
     pygame.init()
     pygame.display.set_caption(title)
-    pygame.display.set_icon(pygame.image.load('icon.png'))
     pygame.key.set_repeat(500, 100)
     screen = pygame.display.set_mode((1000, 600), pygame.RESIZABLE)
 
@@ -88,12 +85,6 @@ def main():
     msg_text = createtext('msg')
     error_text = createtext('error')
 
-    # 搜索歌曲
-    def searchmusic():
-        viewer.search_key = easygui.enterbox('请输入搜索内容', title)
-        if viewer.search_key:
-            viewer.search_online()
-
     # 切换播放顺序
     def switchorder(btn):
         if btn.data == 0:
@@ -111,16 +102,20 @@ def main():
 
     # 创建按钮
     return_btn = ui.Button(getimg('return'), viewer.father, 'ld')
-    search_btn = ui.Button(getimg('search'), searchmusic, 'ld')
+    search_btn = ui.Button(
+        getimg('search'), lambda: start_thread(viewer.search_online), 'ld')
+    top_btn = ui.Button(
+        getimg('toplist'), viewer.tops, 'ld')
     last_btn = ui.Button(getimg('last'), viewer.last, 'rd')
-    play_btn = ui.Button(getimg('play'), lambda: _thread.start_new_thread(player.pause
-                         if player.playing else player.play, ()), 'md')
+    play_btn = ui.Button(getimg('play'), lambda: start_thread(
+        player.pause if player.playing else player.play), 'md')
     next_btn = ui.Button(getimg('next'), viewer.next, 'ld')
-    ok_btn = ui.Button(getimg('ok'), viewer.save, 'rd')
+    download_btn = ui.Button(
+        getimg('download'), lambda: start_thread(viewer.save), 'rd')
     order_btn = ui.Button(
         getimg('order'), lambda: switchorder(order_btn), 'rd')
-    buttons = [return_btn, search_btn, last_btn,
-               play_btn, next_btn, ok_btn, order_btn]
+    buttons = [return_btn, search_btn, top_btn, last_btn,
+               play_btn, next_btn, download_btn, order_btn]
 
     # 创建进度条
     def createprog(name, *args):
@@ -169,13 +164,16 @@ def main():
 
             play_btn.img = getimg('pause' if player.playing else 'play')
             draw_left = showbutton(return_btn, space)
-            showbutton(search_btn, draw_left.right + space)
+            draw_left = showbutton(search_btn, draw_left.right + space)
+            showbutton(top_btn, draw_left.right + space)
             draw_bottom = showbutton(play_btn, winw / 2)
             showbutton(last_btn, draw_bottom.left - space)
             showbutton(next_btn, draw_bottom.right + space)
             draw_right = showbutton(order_btn, winw - space)
-            if viewer.search_mode:
-                showbutton(ok_btn, draw_right.left-space)
+            if viewer.downloadable:
+                showbutton(download_btn, draw_right.left-space)
+            else:
+                download_btn.noshow()
             draw_bottom.top -= space
 
             # 显示进度条
@@ -188,17 +186,11 @@ def main():
                                         (winw / 2, draw_bottom.top * min(total_time / animation_show_time, 1)), line_width)
 
             # 显示文件夹名称和路径
-            if viewer.search_mode:
-                dirname = '搜索:'+viewer.search_key
-            elif not viewer.path:
-                dirname = '磁盘列表'
-            else:
-                dirname = core.filename(viewer.path)
             draw_left = dirname_text.show(
-                screen, dirname, (mid_line.left / 2, space), mid_line.left - space * 2)
-            if not viewer.search_mode and viewer.path:
+                screen, viewer.page, (mid_line.left / 2, space), mid_line.left - space * 2)
+            if viewer.page2:
                 draw_left = dirpath_text.show(
-                    screen, viewer.path, (mid_line.left / 2, draw_left.bottom), mid_line.left - space * 2)
+                    screen, viewer.page2, (mid_line.left / 2, draw_left.bottom), mid_line.left - space * 2)
             draw_left.bottom += space
 
             # 显示文件名称和路径

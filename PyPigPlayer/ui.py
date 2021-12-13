@@ -1,4 +1,9 @@
+import tkinter
+import tkinter.filedialog
+
 import pygame
+
+from init import *
 
 
 def aligner(rect: pygame.Rect, mode: str, pos: tuple) -> pygame.Rect:
@@ -113,6 +118,12 @@ class Button:
         screen.blit(img, self.rect)
         return pygame.Rect(self.rect)
 
+    def noshow(self) -> None:
+        """
+        清除矩形判定区域。
+        """
+        self.rect = None
+
     def click(self, pos: tuple) -> None:
         """
         发生鼠标点击事件时，判断是否点击了按钮并进行操作。
@@ -203,3 +214,48 @@ class Progbar:
         if self.moving:
             self.setvalue(
                 max(0, min(1, (pos[0] - self.rect.left) / self.rect.w)))
+
+
+class Popup:
+    """
+    弹窗。
+    """
+
+    ok: bool = False
+    text: str = ''
+
+    def input(self, msg: str, title: str) -> None:
+        """
+        输入框。
+        """
+        self.ok = False
+        tk = tkinter.Tk()
+        tk.geometry('400x110')
+        tk.resizable(0, 0)
+        tk.title(title)
+
+        tkinter.Label(tk, text=msg).pack(pady=5)
+        inp = tkinter.Entry(tk, width=50)
+        inp.focus_set()
+        inp.pack(pady=5)
+
+        def submit():
+            self.ok = True
+            self.text = inp.get()
+            tk.destroy()
+
+        tk.bind('<Return>', lambda x: submit())
+        tkinter.Button(tk, text='确认', command=submit, width=10).pack(pady=5)
+        tkinter.mainloop()
+        return self.text if self.ok else ''
+
+    def file(self, title: str, default: str, name: str, type: str) -> str:
+        """
+        保存文件。
+        """
+        tk = tkinter.Tk()
+        tk.withdraw()
+        filename = tkinter.filedialog.asksaveasfilename(
+            title=title, filetypes=[(name, type)], initialfile=default)
+        tk.destroy()
+        return filename

@@ -1,4 +1,3 @@
-import difflib
 import html
 import json
 import traceback
@@ -7,6 +6,7 @@ import urllib.request
 
 import faker
 
+import core
 from init import *
 
 
@@ -57,16 +57,13 @@ def get_json(url: str, headers: dict = {}):
     获取 URL 数据并按 JSON 格式解析。
     """
     data = get(url, headers)
-    return json.loads(data.decode())
+    return json.loads(core.autodecode(data))
 
 
 def search(name: str) -> list:
     """
     搜索歌曲。
     """
-    def similar(x):
-        return difflib.SequenceMatcher(None, name, x.name+x.singer).ratio()
-
     try:
         name = urllib.parse.quote_plus(name)
         info.set('正在网易云音乐搜索……')
@@ -79,52 +76,59 @@ def search(name: str) -> list:
         ret = []
         i = j = 0
         while i < len(ret1) and j < len(ret2):
-            ret.append(ret1[i])
-            ret.append(ret2[j])
-            i += 1
-            j += 1
+            for k in range(5):
+                if i+k == len(ret1):
+                    break
+                ret.append(ret1[i+k])
+            for k in range(5):
+                if j+k == len(ret2):
+                    break
+                ret.append(ret2[j+k])
+            i += 5
+            j += 5
         while i < len(ret1):
             ret.append(ret1[i])
             i += 1
         while j < len(ret2):
             ret.append(ret2[j])
             j += 1
-        info.clear()
         return ret
 
     except Exception as e:
-        info.clear()
         traceback.print_exc()
         err.set('搜索失败:'+str(e))
+
+    finally:
+        info.clear()
 
 
 def link(music: Music) -> str:
     """
     获取歌曲音频链接。
     """
+    info.set('正在获取音频链接……')
     try:
-        info.set('正在获取音频链接……')
         if music._ == 'netease':
-            info.clear()
             return f'http://music.163.com/song/media/outer/url?id={music.id}'
         else:
             data = get_json(
                 'https://u.y.qq.com/cgi-bin/musicu.fcg?data={%22data%22:{%22module%22:%22vkey.GetVkeyServer%22,%22method%22:%22CgiGetVkey%22,%22param%22:{%22guid%22:%220%22,%22songmid%22:[%22'+music.mid+'%22]}}}')
-            info.clear()
             return 'http://ws.stream.qqmusic.qq.com/'+data['data']['data']['midurlinfo'][0]['purl']
 
     except Exception as e:
-        info.clear()
         traceback.print_exc()
         err.set('获取音频链接失败:'+str(e))
+
+    finally:
+        info.clear()
 
 
 def lrc(music: Music) -> str:
     """
     获取歌词。
     """
+    info.set('正在获取歌词……')
     try:
-        info.set('正在获取歌词……')
         if music._ == 'netease':
             data = get_json(
                 f'http://music.163.com/api/song/media?id={music.id}')
@@ -138,19 +142,24 @@ def lrc(music: Music) -> str:
         traceback.print_exc()
         err.set('获取歌词失败:'+str(e))
 
+    finally:
+        info.clear()
+
 
 def toplist(topid: int) -> list:
     """
     获取 QQ 音乐榜单。
     """
+    info.set('正在获取榜单……')
     try:
-        info.set('正在获取榜单……')
         data = get_json(
             f'https://c.y.qq.com/v8/fcg-bin/fcg_v8_toplist_cp.fcg?topid={topid}')['songlist']
-        info.clear()
-        return [Music(i['data']['songname'], ' / '.join(j['name'] for j in i['data']['singer']), i['data']['albumname'], i['data']['songid'], 'qqmusic', i['data']['songmid'])
+        return [Music(i['data']['songname'], ' & '.join(j['name'] for j in i['data']['singer']), i['data']['albumname'], i['data']['songid'], 'qqmusic', i['data']['pay']['payplay'], i['data']['songmid'])
                 for i in data]
+
     except Exception as e:
-        info.clear()
         traceback.print_exc()
         err.set('获取榜单失败:'+str(e))
+
+    finally:
+        info.clear()
