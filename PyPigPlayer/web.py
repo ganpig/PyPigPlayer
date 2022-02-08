@@ -11,6 +11,9 @@ import popup
 from init import *
 
 
+music_u = ''
+
+
 class Music:
     """
     单曲信息。
@@ -166,9 +169,8 @@ def singer() -> None:
                         f'http://music.163.com/api/album/{album}?limit=500')
                     if 'album' in data:
                         for i in data['album']['songs']:
-                            if i['fee'] != 1:
-                                songs.add(Music(i['name'], ','.join(
-                                    j['name'] for j in i['artists']), i['album']['name'], i['id'], 'netease'))
+                            songs.add(Music(i['name'], ','.join(
+                                j['name'] for j in i['artists']), i['album']['name'], i['id'], 'netease'))
                         ok.add(album)
                 for i in ok:
                     albums.remove(i)
@@ -176,6 +178,7 @@ def singer() -> None:
                     break
             info.clear()
             if popup.yesno(f'确认下载{len(songs)}首歌曲?', '歌手歌曲获取完毕'):
+                skip_mp3 = popup.yesno('是否跳过音频，仅下载歌词?', '下载模式')
                 savepath = popup.folder('请选择保存文件夹')
                 fail_num = 0
                 for num, i in enumerate(songs):
@@ -185,6 +188,9 @@ def singer() -> None:
                             f'正在下载歌曲({num+1}/{len(songs)}'+(f'，重试{times}次' if times else '')+f'，失败{fail_num}首)……')
                         filepath = os.path.join(savepath, re.sub(
                             r'[\/\\\:\*\?\"\<\>\|]', '_',  i.singer+' - '+i.name+'.mp3'))
+                        if skip_mp3:
+                            success = True
+                            break
                         open(filepath, 'wb').write(get(link(i)))
                         if len(open(filepath, 'rb').read()) > 1e5:
                             success = True
@@ -210,18 +216,32 @@ def songlist() -> None:
     """
     下载网易云音乐歌单。
     """
+    global music_u
     try:
         id = popup.input('请输入网易云音乐歌单ID', '下载歌单')
         if id:
+            def getsongs():
+                while True:
+                    if music_u:
+                        data = get_json(
+                            f'https://music.163.com/api/playlist/detail?id={id}', {'cookie': 'MUSIC_U='+music_u})
+                    else:
+                        data = get_json(
+                            f'https://music.163.com/api/playlist/detail?id={id}')
+                    if 'result' in data:
+                        print(json.dumps(data, indent=4, sort_keys=True),
+                              file=open('1.txt', 'w'))
+                        break
+                return [Music(i['name'], ','.join(
+                    j['name'] for j in i['artists']), i['album']['name'], i['id'], 'netease') for i in data['result']['tracks']]
             info.set('正在获取歌单……')
-            while True:
-                data = get_json(
-                    f'https://music.163.com/api/playlist/detail?id={id}&limit=5000')
-                if 'result' in data:
-                    break
-            songs = [Music(i['name'], ','.join(
-                j['name'] for j in i['artists']), i['album']['name'], i['id'], 'netease') for i in data['result']['tracks']
-                if i['fee'] != 1]
+            songs = getsongs()
+            if len(songs) == 10:
+                if not music_u:
+                    music_u = popup.input(
+                        '获取完整歌单需要输入登陆网页版后的cookie\n请粘贴 MUSIC_U 到下方(若不知如何查看可留空)', '未登录只能下载前10首')
+                    if music_u:
+                        songs = getsongs()
             info.clear()
             if popup.yesno(f'确认下载{len(songs)}首歌曲?', '歌单获取完毕'):
                 skip_mp3 = popup.yesno('是否跳过音频，仅下载歌词?', '下载模式')
