@@ -350,10 +350,6 @@ def main():
                         viewer.viewid -= 1
                     elif pressed(pygame.K_DOWN):
                         viewer.viewid += 1
-                    elif pressed(pygame.K_MINUS):
-                        timer.set_time(timer.get_time() - 300)
-                    elif pressed(pygame.K_EQUALS):
-                        timer.set_time(timer.get_time() + 300)
                     elif pressed(pygame.K_RETURN) and lrc.lrc:
                         if shift:
                             if cur_lrc_id >= 0:

@@ -79,18 +79,23 @@ class Viewer:
     def _open(self, path: str) -> None:
         try:
             if not path:
-                self.page = '磁盘列表'
-                self.page2 = ''
-                self.showitems = ([Item(i.device, 'disk', [(self.open, i.device, False)])
-                                  for i in psutil.disk_partitions()])
+                if is_windows:
+                    self.page = '磁盘列表'
+                    self.page2 = ''
+                    self.showitems = ([Item(i.device, 'disk', [(self.open, i.device, False)])
+                                       for i in psutil.disk_partitions()])
+                else:
+                    self.open('/')
 
             else:
-                all = {os.path.join(path, i) for i in os.listdir(path)}
-                for i in os.popen(f'attrib /d "{path}"\\*').read().splitlines():
-                    properties = i[: 21]
-                    name = i[21:]
-                    if ('S' in properties or 'H' in properties) and name in all:
-                        all.remove(name)
+                all = {os.path.join(path, i) for i in os.listdir(
+                    path) if not i.startswith('.')}
+                if is_windows:
+                    for i in os.popen(f'attrib /d "{path}"\\*').read().splitlines():
+                        properties = i[: 21]
+                        name = i[21:]
+                        if ('S' in properties or 'H' in properties) and name in all:
+                            all.remove(name)
                 dirs = []
                 files = []
                 for i in all:
@@ -204,7 +209,7 @@ class Viewer:
                         self.close()
                     shutil.rmtree(os.path.join(Lists, listname))
                     msg.set('删除歌单成功!')
-                    self.lists()
+                    self._lists()
             except Exception as e:
                 traceback.print_exc()
                 err.set('删除歌单失败:'+str(e))
@@ -229,7 +234,7 @@ class Viewer:
                     if os.path.isfile(lrcpath(file)):
                         os.remove(lrcpath(file))
                     msg.set('从歌单中删除音乐成功!')
-                    self.showlist(listname)
+                    self._showlist(listname)
             except Exception as e:
                 traceback.print_exc()
                 err.set('从歌单中删除音乐失败:'+str(e))
@@ -264,7 +269,7 @@ class Viewer:
         elif self.desktop and self.path == desktop():
             self.desktop = False
             self.home()
-        elif not self.path:
+        elif not self.path or self.path == '/':
             self.home()
         elif self.path == dirname(self.path):
             self.open('')
@@ -295,7 +300,8 @@ class Viewer:
             Item('桌面', 'desktop', [(self.open_desktop, False)]),
             Item('歌单', 'list', [(self.lists, False)]),
             Item('榜单', 'top', [(self.tops, False)]),
-            Item('主题', 'theme', [(self.themes, False)])
+            Item('主题', 'theme', [(self.themes, False)]),
+            Item('歌手', 'music', [(lambda: start_thread(web.singer), False)])
         ]
 
     def last(self) -> None:
@@ -368,11 +374,11 @@ class Viewer:
         if path:
             path = os.path.abspath(path)
         self.showmode = 0
+        self._open(path)
         self.path = path
         self.page = '桌面' if os.path.isdir(path) and os.path.samefile(
-            path, os.path.expanduser('~\\Desktop')) else filename(path)
+            path, desktop()) else '根目录' if path == '/' else filename(path)
         self.page2 = path
-        self._open(path)
         self.update_time = time.time()
         self.viewid = 0
 
@@ -498,11 +504,12 @@ class Viewer:
             if savepath:
                 if ext(savepath) != '.mp3':
                     savepath += '.mp3'
+                savepath = re.sub(r'[\/\\\:\*\?\"\<\>\|]', '_', savepath)
                 try:
                     shutil.copy(mp3, savepath)
                     if lrc:
-                        with open(lrcpath(savepath), 'wb') as f:
-                            f.write(lrc.encode(errors='ignore'))
+                        open(lrcpath(savepath), 'wb').write(
+                            lrc.encode(errors='ignore'))
                     msg.set('保存音乐成功!')
                 except Exception as e:
                     traceback.print_exc()

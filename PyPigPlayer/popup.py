@@ -3,16 +3,22 @@ import tkinter.filedialog
 import tkinter.ttk
 
 import pygame
-import win32gui
+from init import *
+
+if is_windows:
+    import win32gui
 
 ok = False
 text = ''
 
 
 def _size(w: int, h: int) -> str:
-    rect = win32gui.GetWindowRect(win32gui.FindWindow(
-        None, pygame.display.get_caption()[0]))
-    return f'{w}x{h}+{int(rect[0]+rect[2]-w)//2}+{int(rect[1]+rect[3]-h)//2}'
+    if is_windows:
+        rect = win32gui.GetWindowRect(win32gui.FindWindow(
+            None, pygame.display.get_caption()[0]))
+        return f'{w}x{h}+{int(rect[0]+rect[2]-w)//2}+{int(rect[1]+rect[3]-h)//2}'
+    else:
+        return f'{w}x{h}'
 
 
 def choose(msg: str, title: str, choices: list, default: int = 0) -> str:
@@ -51,6 +57,17 @@ def choose(msg: str, title: str, choices: list, default: int = 0) -> str:
     tkinter.Button(tk, text='确认', command=submit, width=10).pack(pady=5)
     tkinter.mainloop()
     return text
+
+
+def folder(title: str) -> str:
+    """
+    选择文件夹。
+    """
+    tk = tkinter.Tk()
+    tk.withdraw()
+    filename = tkinter.filedialog.askdirectory(title=title)
+    tk.destroy()
+    return filename
 
 
 def input(msg: str, title: str) -> None:

@@ -1,11 +1,13 @@
 import html
 import json
+import re
 import traceback
 import urllib.parse
 import urllib.request
 
 import faker
 
+import popup
 from init import *
 
 
@@ -64,11 +66,11 @@ def link(music: Music) -> str:
     """
     获取歌曲音频链接。
     """
-    info.set('正在获取音频链接……')
     try:
         if music._ == 'netease':
             return f'http://music.163.com/song/media/outer/url?id={music.id}'
         else:
+            info.set('正在获取音频链接……')
             data = get_json(
                 'https://u.y.qq.com/cgi-bin/musicu.fcg?data={%22data%22:{%22module%22:%22vkey.GetVkeyServer%22,%22method%22:%22CgiGetVkey%22,%22param%22:{%22guid%22:%220%22,%22songmid%22:[%22'+music.mid+'%22]}}}')
             return 'http://ws.stream.qqmusic.qq.com/'+data['data']['data']['midurlinfo'][0]['purl']
@@ -78,7 +80,8 @@ def link(music: Music) -> str:
         err.set('获取音频链接失败:'+str(e))
 
     finally:
-        info.clear()
+        if music._ == 'qqmusic':
+            info.clear()
 
 
 def lrc(music: Music) -> str:
@@ -138,6 +141,66 @@ def search(name: str) -> list:
     except Exception as e:
         traceback.print_exc()
         err.set('搜索失败:'+str(e))
+
+    finally:
+        info.clear()
+
+
+def singer() -> None:
+    """
+    下载网易云音乐歌手所有歌曲。
+    """
+    try:
+        id = popup.input('请输入网易云音乐歌手ID', '下载歌手所有歌曲')
+        if id:
+            songs = set()
+            info.set('正在获取歌手专辑列表……')
+            albums = set(i['id'] for i in get_json(
+                f'http://music.163.com/api/artist/albums/{id}?limit=500')['hotAlbums'])
+            for times in range(100):
+                ok = set()
+                for num, album in enumerate(albums):
+                    info.set(
+                        f'正在获取歌手歌曲列表(第{times+1}次尝试，{num+1}/{len(albums)}，共{len(songs)}首)……')
+                    data = get_json(
+                        f'http://music.163.com/api/album/{album}?limit=500')
+                    if 'album' in data:
+                        for i in data['album']['songs']:
+                            if i['fee'] != 1:
+                                songs.add(Music(i['name'], ' & '.join(
+                                    j['name'] for j in i['artists']), i['album']['name'], i['id'], 'netease'))
+                        ok.add(album)
+                for i in ok:
+                    albums.remove(i)
+                if len(albums) == 0:
+                    break
+            info.clear()
+            if popup.yesno(f'确认下载{len(songs)}首歌曲?', '歌手歌曲获取完毕'):
+                savepath = popup.folder('请选择保存文件夹')
+                fail_num = 0
+                for num, i in enumerate(songs):
+                    success = False
+                    for times in range(3):
+                        info.set(
+                            f'正在下载歌曲({num+1}/{len(songs)}'+(f'，重试{times}次' if times else '')+f'，失败{fail_num}首)……')
+                        filepath = os.path.join(savepath, re.sub(
+                            r'[\/\\\:\*\?\"\<\>\|]', '_',  i.name+'.mp3'))
+                        open(filepath, 'wb').write(get(link(i)))
+                        if len(open(filepath, 'rb').read()) > 1e5:
+                            success = True
+                            break
+                    if success:
+                        open(filepath[:-3]+'lrc',
+                             'wb').write(lrc(i).encode(errors='ignore'))
+                    else:
+                        os.remove(filepath)
+                        fail_num += 1
+                popup.print(
+                    f'成功{len(songs)-fail_num}首，失败{fail_num}首。', '下载歌手歌曲完毕')
+
+    except Exception as e:
+        traceback.print_exc()
+        err.set('下载歌手歌曲失败:'+str(e))
 
     finally:
         info.clear()

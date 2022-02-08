@@ -1,6 +1,7 @@
+import os
 import time
 
-Title = 'PyPigPlayer v2.1.2'
+Title = 'PyPigPlayer v2.3'
 
 Fonts = 'Fonts'
 Lists = 'Lists'
@@ -63,3 +64,9 @@ class Msg:
 info = Msg()
 msg = Msg()
 err = Msg()
+
+for i in (Lists, Temp):
+    if not os.path.isdir(i):
+        os.makedirs(i)
+
+is_windows = os.name == 'nt'

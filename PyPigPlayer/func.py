@@ -1,13 +1,15 @@
 import hashlib
 import os
+import re
 import subprocess
 import threading
 
-import win32api
-import win32con
-
 import web
 from init import *
+
+if is_windows:
+    import win32api
+    import win32con
 
 
 def convert_mp3(file: str, target: str) -> None:
@@ -28,9 +30,12 @@ def convert_mp3(file: str, target: str) -> None:
 
 
 def desktop() -> str:
-    key = win32api.RegOpenKey(
-        win32con.HKEY_CURRENT_USER, 'Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders', 0, win32con.KEY_READ)
-    return win32api.RegQueryValueEx(key, 'Desktop')[0]
+    if is_windows:
+        key = win32api.RegOpenKey(
+            win32con.HKEY_CURRENT_USER, 'Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders', 0, win32con.KEY_READ)
+        return win32api.RegQueryValueEx(key, 'Desktop')[0]
+    else:
+        return os.popen('eval echo `cat $HOME/.config/user-dirs.dirs|grep DESKTOP|tail -1|cut -d\'=\' -f 2|sed \'s/\\\"//g\'`').read().strip()
 
 
 def dirname(path: str) -> str:
@@ -68,6 +73,12 @@ def lrcpath(file: str) -> str:
     """
     return os.path.splitext(file)[0]+'.lrc'
 
+
+def makefilename(name:str)->str:
+    """
+    规范化文件名。
+    """
+    return re.sub(r'[\/\\\:\*\?\"\<\>\|]', '_', name)
 
 def mp3path(file: str) -> str:
     """
