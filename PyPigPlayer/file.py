@@ -294,14 +294,15 @@ class Viewer:
         self.page2 = ''
         self.update_time = time.time()
         self.showitems = [
-            Item('打开', 'folder', [
+            Item('打开文件', 'folder', [
                 (lambda: start_thread(self.open_choose), False)]),
-            Item('磁盘', 'disk', [(self.open, '', False)]),
-            Item('桌面', 'desktop', [(self.open_desktop, False)]),
-            Item('歌单', 'list', [(self.lists, False)]),
-            Item('榜单', 'top', [(self.tops, False)]),
-            Item('主题', 'theme', [(self.themes, False)]),
-            Item('歌手', 'music', [(lambda: start_thread(web.singer), False)])
+            Item('磁盘文件', 'disk', [(self.open, '', False)]),
+            Item('桌面文件', 'desktop', [(self.open_desktop, False)]),
+            Item('我的歌单', 'list', [(self.lists, False)]),
+            Item('查看榜单', 'top', [(self.tops, False)]),
+            Item('切换主题', 'theme', [(self.themes, False)]),
+            Item('下载歌手', 'music', [(lambda: start_thread(web.singer), False)]),
+            Item('下载歌单', 'music', [(lambda: start_thread(web.songlist), False)])
         ]
 
     def last(self) -> None:

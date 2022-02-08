@@ -114,10 +114,10 @@ def search(name: str) -> list:
     try:
         name = urllib.parse.quote_plus(name)
         info.set('正在网易云音乐搜索……')
-        ret1 = [Music(i['name'], ' & '.join(j['name'] for j in i['artists']), i['album']['name'], i['id'], 'netease', i['fee'] == 1)
+        ret1 = [Music(i['name'], ','.join(j['name'] for j in i['artists']), i['album']['name'], i['id'], 'netease', i['fee'] == 1)
                 for i in get_json('http://music.163.com/api/search/get?type=1&limit=100&s='+name)['result']['songs'] if not i['status']]
         info.set('正在QQ音乐搜索……')
-        ret2 = [Music(i['songname'], ' & '.join(j['name'] for j in i['singer']), i['albumname'], i['songid'], 'qqmusic', i['pay']['payplay'], i['songmid'])
+        ret2 = [Music(i['songname'], ','.join(j['name'] for j in i['singer']), i['albumname'], i['songid'], 'qqmusic', i['pay']['payplay'], i['songmid'])
                 for i in get_json('https://c.y.qq.com/soso/fcgi-bin/client_search_cp?n=99&format=json&w='+name)['data']['song']['list']]
 
         ret = []
@@ -167,7 +167,7 @@ def singer() -> None:
                     if 'album' in data:
                         for i in data['album']['songs']:
                             if i['fee'] != 1:
-                                songs.add(Music(i['name'], ' & '.join(
+                                songs.add(Music(i['name'], ','.join(
                                     j['name'] for j in i['artists']), i['album']['name'], i['id'], 'netease'))
                         ok.add(album)
                 for i in ok:
@@ -184,7 +184,7 @@ def singer() -> None:
                         info.set(
                             f'正在下载歌曲({num+1}/{len(songs)}'+(f'，重试{times}次' if times else '')+f'，失败{fail_num}首)……')
                         filepath = os.path.join(savepath, re.sub(
-                            r'[\/\\\:\*\?\"\<\>\|]', '_',  i.name+'.mp3'))
+                            r'[\/\\\:\*\?\"\<\>\|]', '_',  i.singer+' - '+i.name+'.mp3'))
                         open(filepath, 'wb').write(get(link(i)))
                         if len(open(filepath, 'rb').read()) > 1e5:
                             success = True
@@ -206,6 +206,58 @@ def singer() -> None:
         info.clear()
 
 
+def songlist() -> None:
+    """
+    下载网易云音乐歌单。
+    """
+    try:
+        id = popup.input('请输入网易云音乐歌单ID', '下载歌单')
+        if id:
+            info.set('正在获取歌单……')
+            while True:
+                data = get_json(
+                    f'https://music.163.com/api/playlist/detail?id={id}&limit=5000')
+                if 'result' in data:
+                    break
+            songs = [Music(i['name'], ','.join(
+                j['name'] for j in i['artists']), i['album']['name'], i['id'], 'netease') for i in data['result']['tracks']
+                if i['fee'] != 1]
+            info.clear()
+            if popup.yesno(f'确认下载{len(songs)}首歌曲?', '歌单获取完毕'):
+                skip_mp3 = popup.yesno('是否跳过音频，仅下载歌词?', '下载模式')
+                savepath = popup.folder('请选择保存文件夹')
+                fail_num = 0
+                for num, i in enumerate(songs):
+                    success = False
+                    for times in range(3):
+                        info.set(
+                            f'正在下载歌曲({num+1}/{len(songs)}'+(f'，重试{times}次' if times else '')+f'，失败{fail_num}首)……')
+                        filepath = os.path.join(savepath, re.sub(
+                            r'[\/\\\:\*\?\"\<\>\|]', '_',  i.singer+' - '+i.name+'.mp3'))
+                        if skip_mp3:
+                            success = True
+                            break
+                        open(filepath, 'wb').write(get(link(i)))
+                        if len(open(filepath, 'rb').read()) > 1e5:
+                            success = True
+                            break
+                    if success:
+                        open(filepath[:-3]+'lrc',
+                             'wb').write(lrc(i).encode(errors='ignore'))
+                    else:
+                        os.remove(filepath)
+                        fail_num += 1
+                popup.print(
+                    f'成功{len(songs)-fail_num}首，失败{fail_num}首。', '下载歌单完毕')
+
+    except Exception as e:
+        traceback.print_exc()
+        err.set('下载歌手歌曲失败:'+str(e))
+
+    finally:
+        info.clear()
+
+
 def toplist(topid: int) -> list:
     """
     获取 QQ 音乐榜单。
@@ -214,7 +266,7 @@ def toplist(topid: int) -> list:
     try:
         data = get_json(
             f'https://c.y.qq.com/v8/fcg-bin/fcg_v8_toplist_cp.fcg?topid={topid}')['songlist']
-        return [Music(i['data']['songname'], ' & '.join(j['name'] for j in i['data']['singer']), i['data']['albumname'], i['data']['songid'], 'qqmusic', i['data']['pay']['payplay'], i['data']['songmid'])
+        return [Music(i['data']['songname'], ','.join(j['name'] for j in i['data']['singer']), i['data']['albumname'], i['data']['songid'], 'qqmusic', i['data']['pay']['payplay'], i['data']['songmid'])
                 for i in data]
 
     except Exception as e:

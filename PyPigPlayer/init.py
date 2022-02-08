@@ -1,7 +1,7 @@
 import os
 import time
 
-Title = 'PyPigPlayer v2.3'
+Title = 'PyPigPlayer v2.3.1'
 
 Fonts = 'Fonts'
 Lists = 'Lists'
