@@ -119,9 +119,10 @@ def search(name: str) -> list:
         info.set('正在网易云音乐搜索……')
         ret1 = [Music(i['name'], ','.join(j['name'] for j in i['artists']), i['album']['name'], i['id'], 'netease', i['fee'] == 1)
                 for i in get_json('http://music.163.com/api/search/get?type=1&limit=100&s='+name)['result']['songs'] if not i['status']]
-        info.set('正在QQ音乐搜索……')
-        ret2 = [Music(i['songname'], ','.join(j['name'] for j in i['singer']), i['albumname'], i['songid'], 'qqmusic', i['pay']['payplay'], i['songmid'])
-                for i in get_json('https://c.y.qq.com/soso/fcgi-bin/client_search_cp?n=99&format=json&w='+name)['data']['song']['list']]
+        ret2 = []
+        # info.set('正在QQ音乐搜索……')
+        # ret2 = [Music(i['songname'], ','.join(j['name'] for j in i['singer']), i['albumname'], i['songid'], 'qqmusic', i['pay']['payplay'], i['songmid'])
+        #        for i in get_json('https://c.y.qq.com/soso/fcgi-bin/search_for_qq_cp?n=99&format=json&w='+name)['data']['song']['list']]
 
         ret = []
         i = j = 0
@@ -196,8 +197,10 @@ def singer() -> None:
                             success = True
                             break
                     if success:
-                        open(filepath[:-3]+'lrc',
-                             'wb').write(lrc(i).encode(errors='ignore'))
+                        lrc = lrc(i)
+                        if lrc:
+                            open(filepath[:-3]+'lrc',
+                                 'wb').write(lrc(i).encode(errors='ignore'))
                     else:
                         os.remove(filepath)
                         fail_num += 1
@@ -262,8 +265,10 @@ def songlist() -> None:
                             success = True
                             break
                     if success:
-                        open(filepath[:-3]+'lrc',
-                             'wb').write(lrc(i).encode(errors='ignore'))
+                        lrc = lrc(i)
+                        if lrc:
+                            open(filepath[:-3]+'lrc',
+                                 'wb').write(lrc(i).encode(errors='ignore'))
                     else:
                         os.remove(filepath)
                         fail_num += 1

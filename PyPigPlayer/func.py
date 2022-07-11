@@ -74,11 +74,16 @@ def lrcpath(file: str) -> str:
     return os.path.splitext(file)[0]+'.lrc'
 
 
-def makefilename(name:str)->str:
+def makefilename(file: str) -> str:
     """
     规范化文件名。
     """
-    return re.sub(r'[\/\\\:\*\?\"\<\>\|]', '_', name)
+    dir, name = os.path.split(file)
+    print(dir,name)
+    name = re.sub(r'[\/\\\:\*\?\"\<\>\|]', '_', name)
+    print(dir,name)
+    return os.path.join(dir, name)
+
 
 def mp3path(file: str) -> str:
     """

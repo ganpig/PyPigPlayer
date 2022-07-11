@@ -102,6 +102,15 @@ class Button:
         screen.blit(img, self.rect)
         return pygame.Rect(self.rect)
 
+    def touched(self, pos: tuple) -> bool:
+        """
+        判断光标是否在按钮上。
+        """
+        if self.rect:
+            return self.rect.collidepoint(pos)
+        else:
+            return False
+
 
 class Scrollbar:
     """
@@ -167,6 +176,15 @@ class Scrollbar:
             pygame.draw.rect(screen, self.color, self.rect)
 
         return pygame.Rect(self.rect)
+
+    def touched(self, pos: tuple) -> bool:
+        """
+        判断光标是否在滚动条上。
+        """
+        if self.rect:
+            return self.rect.collidepoint(pos)
+        else:
+            return False
 
 
 class Text:
@@ -293,3 +311,9 @@ class Progbar:
         发生鼠标松开事件时需调用此方法。
         """
         self.moving = False
+
+    def touched(self, pos: tuple) -> bool:
+        """
+        判断鼠标是否在进度条上。
+        """
+        return self.rect.collidepoint(pos)

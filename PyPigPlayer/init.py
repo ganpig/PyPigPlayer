@@ -1,7 +1,7 @@
 import os
 import time
 
-Title = 'PyPigPlayer v2.3.1'
+Title = 'PyPigPlayer v2.4'
 
 Fonts = 'Fonts'
 Lists = 'Lists'
@@ -15,7 +15,6 @@ Supported_Formats = [
     '.ape',
     '.flac',
     '.m4a',
-    '.mid',
     '.mp3',
     '.wav'
 ]

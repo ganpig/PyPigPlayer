@@ -411,6 +411,12 @@ def main():
                 elif event.type == pygame.USEREVENT:
                     viewer.end()
 
+            # 设置光标样式
+            if sum(x.touched(pygame.mouse.get_pos()) for x in items + buttons + progress_bars + [scrollbar]):
+                pygame.mouse.set_cursor(*pygame.cursors.tri_left)
+            else:
+                pygame.mouse.set_cursor(*pygame.cursors.arrow)
+
             # 显示提醒信息
             if msg.time() <= msg_show_time:
                 msg_width = winw-space*2

@@ -302,7 +302,8 @@ class Viewer:
             Item('查看榜单', 'top', [(self.tops, False)]),
             Item('切换主题', 'theme', [(self.themes, False)]),
             Item('下载歌手', 'music', [(lambda: start_thread(web.singer), False)]),
-            Item('下载歌单', 'music', [(lambda: start_thread(web.songlist), False)])
+            Item('下载歌单', 'music', [
+                 (lambda: start_thread(web.songlist), False)])
         ]
 
     def last(self) -> None:
@@ -375,11 +376,11 @@ class Viewer:
         if path:
             path = os.path.abspath(path)
         self.showmode = 0
-        self._open(path)
         self.path = path
         self.page = '桌面' if os.path.isdir(path) and os.path.samefile(
             path, desktop()) else '根目录' if path == '/' else filename(path)
         self.page2 = path
+        self._open(path)
         self.update_time = time.time()
         self.viewid = 0
 
@@ -503,9 +504,7 @@ class Viewer:
                 savepath = popup.save(
                     '保存音乐', self.playing+'.mp3', 'MP3 音乐文件', '.mp3')
             if savepath:
-                if ext(savepath) != '.mp3':
-                    savepath += '.mp3'
-                savepath = re.sub(r'[\/\\\:\*\?\"\<\>\|]', '_', savepath)
+                savepath = makefilename(savepath)
                 try:
                     shutil.copy(mp3, savepath)
                     if lrc:
